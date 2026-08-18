@@ -1,0 +1,684 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Lead Research Agent</title>
+<style>
+  :root {
+    --bg: #0a0a0f;
+    --surface: #12121a;
+    --surface2: #1a1a26;
+    --border: #2a2a3a;
+    --text: #e4e4ef;
+    --text-dim: #7a7a8e;
+    --accent: #6366f1;
+    --accent-glow: rgba(99, 102, 241, 0.3);
+    --green: #22c55e;
+    --green-glow: rgba(34, 197, 94, 0.3);
+    --amber: #f59e0b;
+    --amber-glow: rgba(245, 158, 11, 0.3);
+    --red: #ef4444;
+    --blue: #3b82f6;
+    --purple: #a855f7;
+    --cyan: #06b6d4;
+    --pink: #ec4899;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  /* ── Header ─────────────────────────────── */
+  .header {
+    padding: 24px 40px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    background: var(--surface);
+  }
+  .header .logo {
+    width: 36px; height: 36px;
+    background: linear-gradient(135deg, var(--accent), var(--purple));
+    border-radius: 10px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 18px; font-weight: 700; color: white;
+  }
+  .header h1 {
+    font-size: 18px; font-weight: 600; letter-spacing: -0.3px;
+  }
+  .header .badge {
+    font-size: 11px; padding: 3px 10px;
+    background: var(--surface2); border: 1px solid var(--border);
+    border-radius: 20px; color: var(--text-dim);
+  }
+
+  /* ── Input Section ─────────────────────── */
+  .input-section {
+    max-width: 800px;
+    margin: 48px auto 0;
+    padding: 0 24px;
+  }
+  .input-section h2 {
+    font-size: 28px; font-weight: 700; text-align: center;
+    letter-spacing: -0.5px; margin-bottom: 8px;
+  }
+  .input-section p {
+    text-align: center; color: var(--text-dim); margin-bottom: 32px;
+    font-size: 14px;
+  }
+  .query-box {
+    display: flex; gap: 12px; margin-bottom: 16px;
+  }
+  .query-box input {
+    flex: 1; padding: 14px 20px;
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 12px; color: var(--text); font-size: 15px;
+    outline: none; transition: border-color 0.2s;
+  }
+  .query-box input:focus {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px var(--accent-glow);
+  }
+  .query-box input::placeholder { color: var(--text-dim); }
+  .query-box button {
+    padding: 14px 32px;
+    background: var(--accent); color: white; border: none;
+    border-radius: 12px; font-size: 15px; font-weight: 600;
+    cursor: pointer; transition: all 0.2s; white-space: nowrap;
+  }
+  .query-box button:hover {
+    background: #5558e6;
+    box-shadow: 0 0 20px var(--accent-glow);
+  }
+  .query-box button:disabled {
+    opacity: 0.5; cursor: not-allowed;
+  }
+  .examples {
+    display: flex; gap: 8px; flex-wrap: wrap; justify-content: center;
+  }
+  .examples button {
+    padding: 6px 14px; background: var(--surface2); border: 1px solid var(--border);
+    border-radius: 20px; color: var(--text-dim); font-size: 12px;
+    cursor: pointer; transition: all 0.2s;
+  }
+  .examples button:hover {
+    border-color: var(--accent); color: var(--text);
+  }
+
+  /* ── Workflow Visualization ─────────────── */
+  .workflow-section {
+    max-width: 1000px;
+    margin: 48px auto 0;
+    padding: 0 24px;
+    display: none;
+  }
+  .workflow-section.active { display: block; }
+
+  .workflow-title {
+    font-size: 13px; font-weight: 600; text-transform: uppercase;
+    letter-spacing: 1.2px; color: var(--text-dim); margin-bottom: 24px;
+    text-align: center;
+  }
+
+  .workflow {
+    display: flex;
+    align-items: flex-start;
+    justify-content: center;
+    gap: 0;
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    padding: 20px 0;
+  }
+
+  .node {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 10px;
+    min-width: 110px;
+    position: relative;
+  }
+
+  .node-circle {
+    width: 64px; height: 64px;
+    border-radius: 16px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 24px;
+    border: 2px solid var(--border);
+    background: var(--surface);
+    transition: all 0.4s ease;
+    position: relative;
+    z-index: 2;
+  }
+
+  .node-label {
+    font-size: 12px; font-weight: 600; color: var(--text-dim);
+    text-align: center; transition: color 0.3s;
+  }
+  .node-sub {
+    font-size: 10px; color: var(--text-dim); opacity: 0.6;
+    text-align: center; margin-top: -6px;
+  }
+
+  .node-connector {
+    width: 40px; height: 2px;
+    background: var(--border);
+    margin-top: 32px;
+    transition: background 0.4s;
+    flex-shrink: 0;
+  }
+
+  /* States */
+  .node.active .node-circle {
+    border-color: var(--accent);
+    box-shadow: 0 0 24px var(--accent-glow), 0 0 48px var(--accent-glow);
+    animation: pulse 1.5s ease-in-out infinite;
+  }
+  .node.active .node-label { color: var(--accent); }
+
+  .node.done .node-circle {
+    border-color: var(--green);
+    background: rgba(34, 197, 94, 0.1);
+  }
+  .node.done .node-label { color: var(--green); }
+
+  .node.error .node-circle {
+    border-color: var(--red);
+    background: rgba(239, 68, 68, 0.1);
+  }
+
+  .connector.done { background: var(--green); }
+  .connector.active {
+    background: var(--accent);
+    box-shadow: 0 0 8px var(--accent-glow);
+  }
+
+  @keyframes pulse {
+    0%, 100% { transform: scale(1); }
+    50% { transform: scale(1.05); }
+  }
+
+  /* ── Status Bar ────────────────────────── */
+  .status-bar {
+    max-width: 800px; margin: 24px auto 0; padding: 0 24px;
+    display: none;
+  }
+  .status-bar.active { display: block; }
+  .status-msg {
+    text-align: center; font-size: 14px; color: var(--text-dim);
+    padding: 12px 20px;
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 10px;
+  }
+  .status-msg .highlight { color: var(--accent); font-weight: 600; }
+
+  /* ── Results Section ───────────────────── */
+  .results-section {
+    max-width: 1100px;
+    margin: 32px auto 48px;
+    padding: 0 24px;
+    display: none;
+  }
+  .results-section.active { display: block; }
+
+  .results-header {
+    display: flex; align-items: center; justify-content: space-between;
+    margin-bottom: 20px;
+  }
+  .results-header h3 {
+    font-size: 18px; font-weight: 700;
+  }
+  .results-header .count {
+    font-size: 13px; color: var(--text-dim);
+    padding: 4px 12px; background: var(--surface2);
+    border-radius: 20px; border: 1px solid var(--border);
+  }
+
+  .tab-bar {
+    display: flex; gap: 4px; margin-bottom: 20px;
+    background: var(--surface); border-radius: 10px; padding: 4px;
+    border: 1px solid var(--border); width: fit-content;
+  }
+  .tab-btn {
+    padding: 8px 20px; border: none; background: transparent;
+    color: var(--text-dim); font-size: 13px; font-weight: 500;
+    border-radius: 8px; cursor: pointer; transition: all 0.2s;
+  }
+  .tab-btn.active {
+    background: var(--accent); color: white;
+  }
+
+  /* Table */
+  .table-wrap {
+    overflow-x: auto;
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    background: var(--surface);
+  }
+  table {
+    width: 100%; border-collapse: collapse; font-size: 13px;
+  }
+  th {
+    text-align: left; padding: 12px 16px;
+    font-size: 11px; font-weight: 600; text-transform: uppercase;
+    letter-spacing: 0.8px; color: var(--text-dim);
+    border-bottom: 1px solid var(--border);
+    background: var(--surface2);
+    white-space: nowrap;
+  }
+  td {
+    padding: 12px 16px;
+    border-bottom: 1px solid var(--border);
+    color: var(--text);
+    max-width: 200px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  tr:last-child td { border-bottom: none; }
+  tr:hover td { background: var(--surface2); }
+  td .company-name { font-weight: 600; color: var(--text); }
+  td .url { color: var(--accent); font-size: 12px; }
+  td .null { color: var(--text-dim); font-style: italic; }
+
+  /* JSON view */
+  .json-view {
+    display: none;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 20px;
+    max-height: 500px;
+    overflow: auto;
+  }
+  .json-view pre {
+    font-family: 'JetBrains Mono', 'Fira Code', monospace;
+    font-size: 12px;
+    line-height: 1.6;
+    color: var(--text);
+    white-space: pre-wrap;
+    word-break: break-all;
+  }
+
+  /* Log view */
+  .log-view {
+    display: none;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 20px;
+    max-height: 400px;
+    overflow: auto;
+  }
+  .log-entry {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12px; padding: 4px 0;
+    color: var(--text-dim);
+    border-bottom: 1px solid var(--border);
+  }
+  .log-entry:last-child { border-bottom: none; }
+  .log-entry .tag {
+    color: var(--accent); font-weight: 600;
+  }
+
+  /* ── Spinner ───────────────────────────── */
+  .spinner {
+    display: inline-block;
+    width: 16px; height: 16px;
+    border: 2px solid var(--border);
+    border-top-color: var(--accent);
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+    vertical-align: middle;
+    margin-right: 8px;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* ── Responsive ────────────────────────── */
+  @media (max-width: 768px) {
+    .header { padding: 16px 20px; }
+    .input-section { margin-top: 32px; }
+    .query-box { flex-direction: column; }
+    .workflow { gap: 0; }
+    .node { min-width: 80px; }
+    .node-circle { width: 48px; height: 48px; font-size: 18px; border-radius: 12px; }
+    .node-connector { width: 24px; }
+  }
+</style>
+</head>
+<body>
+
+<!-- Header -->
+<div class="header">
+  <div class="logo">L</div>
+  <h1>Lead Research Agent</h1>
+  <span class="badge">LangGraph + Exa + Tavily + Hunter</span>
+</div>
+
+<!-- Input -->
+<div class="input-section" id="inputSection">
+  <h2>What leads are you looking for?</h2>
+  <p>Describe your target leads in natural language. The AI agent will understand your intent and search accordingly.</p>
+  <div class="query-box">
+    <input type="text" id="queryInput"
+      placeholder="e.g. Find top B2B SaaS companies in Bangalore with 50-200 employees"
+      autofocus>
+    <button id="startBtn" onclick="startResearch()">Research</button>
+  </div>
+  <div class="examples">
+    <button onclick="setQuery('Find top B2B SaaS companies in Bangalore with 50-200 employees')">B2B SaaS Bangalore</button>
+    <button onclick="setQuery('Find fintech startups in Mumbai with marketing head contacts')">Fintech Mumbai</button>
+    <button onclick="setQuery('Find e-commerce companies in India with 100-500 employees and their CEO')">E-commerce India</button>
+    <button onclick="setQuery('Find AI/ML companies in Hyderabad and their founders')">AI/ML Hyderabad</button>
+    <button onclick="setQuery('Find top leads for B2B electronics manufacturers in India')">B2B Electronics</button>
+  </div>
+</div>
+
+<!-- Workflow Visualization -->
+<div class="workflow-section" id="workflowSection">
+  <div class="workflow-title">Agent Workflow</div>
+  <div class="workflow" id="workflow">
+    <!-- Populated by JS -->
+  </div>
+</div>
+
+<!-- Status -->
+<div class="status-bar" id="statusBar">
+  <div class="status-msg" id="statusMsg">
+    <span class="spinner"></span>
+    <span id="statusText">Initializing agent...</span>
+  </div>
+</div>
+
+<!-- Results -->
+<div class="results-section" id="resultsSection">
+  <div class="results-header">
+    <h3>Research Results</h3>
+    <span class="count" id="resultCount">0 leads</span>
+  </div>
+
+  <div class="tab-bar">
+    <button class="tab-btn active" onclick="showTab('table')">Table</button>
+    <button class="tab-btn" onclick="showTab('json')">JSON</button>
+    <button class="tab-btn" onclick="showTab('log')">Execution Log</button>
+  </div>
+
+  <div class="table-view" id="tableView">
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>#</th>
+            <th>Company</th>
+            <th>Industry</th>
+            <th>Website</th>
+            <th>Founded</th>
+            <th>Revenue</th>
+            <th>Location</th>
+            <th>CEO / Founder</th>
+            <th>Marketing Head</th>
+            <th>Email</th>
+          </tr>
+        </thead>
+        <tbody id="tableBody"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="json-view" id="jsonView">
+    <pre id="jsonContent"></pre>
+  </div>
+
+  <div class="log-view" id="logView">
+    <div id="logContent"></div>
+  </div>
+</div>
+
+<script>
+// ── Node definitions ──
+const NODES = [
+  { id: 'agent',       label: 'Agent',       icon: '&#x1F9E0;', sub: 'Intent' },
+  { id: 'exa1',        label: 'Exa',          icon: '&#x1F50D;', sub: 'Companies' },
+  { id: 'firecrawl',   label: 'Firecrawl',    icon: '&#x1F310;', sub: 'Crawl' },
+  { id: 'tools',       label: 'Tools',        icon: '&#x1F527;', sub: 'Exa+Tavily' },
+  { id: 'hunter',      label: 'Hunter',       icon: '&#x1F4E7;', sub: 'Email' },
+  { id: 'agent2',      label: 'Agent',        icon: '&#x2705;',  sub: 'Evaluate' },
+];
+
+const NODE_STEP_MAP = [
+  'agent',      // interpret_request
+  'agent',      // create_research_plan
+  'exa1',       // discover_companies
+  'firecrawl',  // research_companies
+  'tools',      // find_people
+  'hunter',     // enrich_contacts
+  'agent2',     // evaluate_evidence
+  'agent2',     // build_standard_lead
+];
+
+// ── Build workflow DOM ──
+function buildWorkflow() {
+  const wf = document.getElementById('workflow');
+  wf.innerHTML = '';
+  NODES.forEach((n, i) => {
+    if (i > 0) {
+      const conn = document.createElement('div');
+      conn.className = 'node-connector';
+      conn.id = `conn-${i}`;
+      wf.appendChild(conn);
+    }
+    const node = document.createElement('div');
+    node.className = 'node';
+    node.id = `node-${n.id}`;
+    node.innerHTML = `
+      <div class="node-circle">${n.icon}</div>
+      <div class="node-label">${n.label}</div>
+      <div class="node-sub">${n.sub}</div>
+    `;
+    wf.appendChild(node);
+  });
+}
+buildWorkflow();
+
+// ── State ──
+let currentTab = 'table';
+let finalData = null;
+
+// ── Helpers ──
+function setQuery(q) {
+  document.getElementById('queryInput').value = q;
+  document.getElementById('queryInput').focus();
+}
+
+function resetNodes() {
+  NODES.forEach(n => {
+    document.getElementById(`node-${n.id}`).className = 'node';
+  });
+  for (let i = 1; i < NODES.length; i++) {
+    const conn = document.getElementById(`conn-${i}`);
+    if (conn) conn.className = 'node-connector';
+  }
+}
+
+function activateNode(nodeId) {
+  NODES.forEach(n => {
+    const el = document.getElementById(`node-${n.id}`);
+    if (n.id === nodeId) {
+      el.className = 'node active';
+    } else if (el.classList.contains('active')) {
+      el.className = 'node done';
+    }
+  });
+  // Update connectors
+  const idx = NODES.findIndex(n => n.id === nodeId);
+  for (let i = 1; i <= idx; i++) {
+    const conn = document.getElementById(`conn-${i}`);
+    if (conn) conn.className = 'node-connector done';
+  }
+  if (idx > 0) {
+    const prevConn = document.getElementById(`conn-${idx}`);
+    if (prevConn) prevConn.className = 'node-connector active';
+  }
+}
+
+function completeAllNodes() {
+  NODES.forEach(n => {
+    document.getElementById(`node-${n.id}`).className = 'node done';
+  });
+  for (let i = 1; i < NODES.length; i++) {
+    const conn = document.getElementById(`conn-${i}`);
+    if (conn) conn.className = 'node-connector done';
+  }
+}
+
+function setStatus(msg) {
+  document.getElementById('statusText').innerHTML = msg;
+}
+
+function showTab(tab) {
+  currentTab = tab;
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  event.target.classList.add('active');
+  document.getElementById('tableView').style.display = tab === 'table' ? 'block' : 'none';
+  document.getElementById('jsonView').style.display = tab === 'json' ? 'block' : 'none';
+  document.getElementById('logView').style.display = tab === 'log' ? 'block' : 'none';
+}
+
+// ── Start Research ──
+async function startResearch() {
+  const query = document.getElementById('queryInput').value.trim();
+  if (!query) return;
+
+  // Show workflow
+  const inputSection = document.getElementById('inputSection');
+  inputSection.querySelector('h2').textContent = query;
+  inputSection.querySelector('p').textContent = '';
+  inputSection.querySelector('.examples').style.display = 'none';
+  document.getElementById('workflowSection').classList.add('active');
+  document.getElementById('statusBar').classList.add('active');
+  document.getElementById('resultsSection').classList.remove('active');
+
+  document.getElementById('startBtn').disabled = true;
+  resetNodes();
+  setStatus('Launching research agent...');
+
+  try {
+    const res = await fetch('/api/research', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({ query, max_companies: 5 }),
+    });
+    const { job_id } = await res.json();
+
+    // Subscribe to SSE
+    const evtSource = new EventSource(`/api/stream/${job_id}`);
+    let stepIndex = 0;
+
+    evtSource.onmessage = (e) => {
+      const data = JSON.parse(e.data);
+
+      if (data.type === 'node_start') {
+        const nodeId = NODE_STEP_MAP[data.step_index] || 'agent';
+        activateNode(nodeId);
+        setStatus(`<span class="highlight">${data.display}</span> — ${data.message}`);
+      }
+
+      if (data.type === 'complete') {
+        completeAllNodes();
+        setStatus('Research complete!');
+        finalData = data;
+        renderResults(data);
+        setTimeout(() => {
+          document.getElementById('resultsSection').classList.add('active');
+          document.getElementById('statusBar').classList.remove('active');
+        }, 800);
+        evtSource.close();
+      }
+
+      if (data.type === 'error') {
+        setStatus(`<span style="color:var(--red)">Error: ${data.message}</span>`);
+        evtSource.close();
+      }
+
+      if (data.type === 'done') {
+        evtSource.close();
+      }
+    };
+
+    evtSource.onerror = () => {
+      setStatus('Connection lost. Checking results...');
+      evtSource.close();
+    };
+
+  } catch (err) {
+    setStatus(`Failed to start: ${err.message}`);
+    document.getElementById('startBtn').disabled = false;
+  }
+}
+
+// ── Render Results ──
+function renderResults(data) {
+  const leads = data.leads || [];
+  document.getElementById('resultCount').textContent = `${leads.length} leads`;
+
+  // Table
+  const tbody = document.getElementById('tableBody');
+  tbody.innerHTML = '';
+  leads.forEach((lead, i) => {
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td>${i + 1}</td>
+      <td><span class="company-name">${esc(lead['Company Name'])}</span></td>
+      <td>${esc(lead['Industry']) || '<span class="null">-</span>'}</td>
+      <td><span class="url">${esc(lead['Website'])}</span></td>
+      <td>${esc(lead['Founded']) || '<span class="null">-</span>'}</td>
+      <td>${esc(lead['Revenue']) || '<span class="null">-</span>'}</td>
+      <td>${esc(lead['City/Country']) || '<span class="null">-</span>'}</td>
+      <td>${esc(lead['Ceo/Founder Name']) || '<span class="null">-</span>'}</td>
+      <td>${esc(lead['Marketing Head name']) || '<span class="null">-</span>'}</td>
+      <td>${esc(lead['Contact email']) || '<span class="null">-</span>'}</td>
+    `;
+    tbody.appendChild(tr);
+  });
+
+  // JSON
+  document.getElementById('jsonContent').textContent = JSON.stringify(leads, null, 2);
+
+  // Log
+  const logDiv = document.getElementById('logContent');
+  logDiv.innerHTML = '';
+  (data.log || []).forEach(entry => {
+    const div = document.createElement('div');
+    div.className = 'log-entry';
+    const match = entry.match(/^\[(\w+)\]\s*(.*)$/);
+    if (match) {
+      div.innerHTML = `<span class="tag">[${match[1]}]</span> ${esc(match[2])}`;
+    } else {
+      div.textContent = entry;
+    }
+    logDiv.appendChild(div);
+  });
+}
+
+function esc(s) {
+  if (!s) return '';
+  const d = document.createElement('div');
+  d.textContent = s;
+  return d.innerHTML;
+}
+
+// Enter key
+document.getElementById('queryInput').addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') startResearch();
+});
+</script>
+</body>
+</html>

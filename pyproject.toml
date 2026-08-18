@@ -1,0 +1,23 @@
+[project]
+name = "leads-scraper"
+version = "0.1.0"
+description = "AI-powered lead research engine"
+requires-python = ">=3.11"
+dependencies = [
+    "langgraph>=0.2.0",
+    "langchain-core>=0.3.0",
+    "langchain-nvidia-ai-endpoints>=0.3.0",
+    "pydantic>=2.0",
+    "python-dotenv>=1.0",
+]
+
+[project.optional-dependencies]
+providers = [
+    "exa-py>=1.0",
+    "tavily-python>=0.5",
+    "firecrawl-py>=1.0",
+    "hunter-io>=0.3",
+]
+dev = [
+    "pytest>=8.0",
+]
