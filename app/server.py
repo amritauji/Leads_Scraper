@@ -120,6 +120,21 @@ def _run_pipeline(job_id: str, query: str, max_companies: int = 5):
     contacts = final_state.get("contacts", [])
     log = final_state.get("log", [])
 
+    # Phase 2: Data Quality -> Confidence -> Review -> Lead Master
+    _push(job_id, {"type": "node_start", "node": "phase2", "display": "Data Quality",
+                    "tool": "clean+validate+dedup", "icon": "agent",
+                    "message": "Running data quality checks...", "step_index": 8, "total_steps": 10})
+    time.sleep(0.3)
+
+    from app.phase2 import Phase2Pipeline
+    pipeline = Phase2Pipeline()
+    phase2_result = pipeline.process_leads(leads, research_job_id=job_id)
+
+    _push(job_id, {"type": "node_start", "node": "phase2_confidence", "display": "Confidence",
+                    "tool": "scoring", "icon": "agent",
+                    "message": "Scoring lead confidence...", "step_index": 9, "total_steps": 10})
+    time.sleep(0.3)
+
     # Save to output/
     import os
     os.makedirs("output", exist_ok=True)
@@ -127,6 +142,11 @@ def _run_pipeline(job_id: str, query: str, max_companies: int = 5):
         json.dump(leads, f, indent=2, default=str)
     with open("output/evidence.json", "w", encoding="utf-8") as f:
         json.dump(evidence, f, indent=2, default=str)
+
+    # Collect phase2 stats
+    lm_store = pipeline.lead_master
+    rq_store = pipeline.review_queue
+    phase2_stats = pipeline.get_stats()
 
     _push(job_id, {
         "type": "complete",
@@ -136,6 +156,9 @@ def _run_pipeline(job_id: str, query: str, max_companies: int = 5):
         "contacts": contacts,
         "evidence_count": len(evidence),
         "log": log,
+        "phase2": phase2_stats,
+        "lead_master_count": lm_store.count(),
+        "review_queue_count": len(rq_store.get_pending()),
     })
 
     # Mark done
@@ -195,6 +218,34 @@ def stream(job_id: str):
 @app.route("/output/<path:filename>")
 def serve_output(filename):
     return send_from_directory("output", filename)
+
+
+@app.route("/api/lead-master")
+def get_lead_master():
+    """Get all Lead Master records."""
+    from app.lead_master.store import LeadMasterStore
+    store = LeadMasterStore()
+    return jsonify({"records": store.to_list(), "count": store.count()})
+
+
+@app.route("/api/review-queue")
+def get_review_queue():
+    """Get all pending review items."""
+    from app.review.queue import ReviewQueue
+    rq = ReviewQueue()
+    items = [i.to_dict() for i in rq.get_pending()]
+    return jsonify({"items": items, "count": len(items)})
+
+
+@app.route("/api/review-queue/<review_id>/approve", methods=["POST"])
+def approve_review(review_id: str):
+    """Approve a review item."""
+    from app.phase2 import Phase2Pipeline
+    pipeline = Phase2Pipeline()
+    result = pipeline.approve_review(review_id)
+    if result:
+        return jsonify({"status": "approved", "master": result})
+    return jsonify({"error": "not found"}), 404
 
 
 # ---------------------------------------------------------------------------
