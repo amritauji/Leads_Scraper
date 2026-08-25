@@ -248,6 +248,37 @@ def approve_review(review_id: str):
     return jsonify({"error": "not found"}), 404
 
 
+@app.route("/api/quality-results/<quality_result_id>")
+def get_quality_result(quality_result_id: str):
+    """Get a Data Quality Result by ID."""
+    from app.db.quality_store import QualityResultStore
+    store = QualityResultStore()
+    result = store.get_by_id(quality_result_id)
+    if result:
+        return jsonify(result.to_dict())
+    return jsonify({"error": "not found"}), 404
+
+
+@app.route("/api/confidence-results/<confidence_result_id>")
+def get_confidence_result(confidence_result_id: str):
+    """Get a Confidence Result by ID."""
+    from app.db.confidence_store import ConfidenceResultStore
+    store = ConfidenceResultStore()
+    result = store.get_by_id(confidence_result_id)
+    if result:
+        return jsonify(result.to_dict())
+    return jsonify({"error": "not found"}), 404
+
+
+@app.route("/api/duplicate-events")
+def get_duplicate_events():
+    """Get all duplicate events."""
+    from app.db.duplicate_store import DuplicateEventStore
+    store = DuplicateEventStore()
+    events = [e.to_dict() for e in store.get_all()]
+    return jsonify({"events": events, "count": len(events)})
+
+
 # ---------------------------------------------------------------------------
 if __name__ == "__main__":
     print("\n  Lead Research Agent — http://localhost:5000\n")

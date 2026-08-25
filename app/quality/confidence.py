@@ -191,6 +191,9 @@ def calculate_confidence(
         level = "low"
 
     return ConfidenceResult(
+        lead_id=dq_result.lead_id,
+        research_job_id=dq_result.research_job_id,
+        quality_result_id=dq_result.quality_result_id,
         score=score,
         level=level,
         positive_factors=positive,

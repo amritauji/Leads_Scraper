@@ -180,15 +180,22 @@ class Conflict:
 @dataclass
 class DataQualityResult:
     """Output of the Data Quality Engine for a single lead."""
+    quality_result_id: str = field(default_factory=lambda: f"dq_{uuid.uuid4().hex[:8]}")
+    lead_id: str = ""
+    research_job_id: str | None = None
     original_lead: dict[str, Any] = field(default_factory=dict)
     cleaned_lead: dict[str, Any] = field(default_factory=dict)
     validation: list[FieldValidation] = field(default_factory=list)
     duplicate_result: DuplicateResult = field(default_factory=DuplicateResult)
     issues: list[str] = field(default_factory=list)
     conflicts: list[Conflict] = field(default_factory=list)
+    created_at: str = field(default_factory=lambda: date.today().isoformat())
 
     def to_dict(self) -> dict[str, Any]:
         return {
+            "quality_result_id": self.quality_result_id,
+            "lead_id": self.lead_id,
+            "research_job_id": self.research_job_id,
             "original_lead": self.original_lead,
             "cleaned_lead": self.cleaned_lead,
             "validation": [
@@ -206,20 +213,30 @@ class DataQualityResult:
                 {"field": c.field, "values": c.values}
                 for c in self.conflicts
             ],
+            "created_at": self.created_at,
         }
 
 
 @dataclass
 class ConfidenceResult:
     """Output of the Confidence Engine."""
+    confidence_result_id: str = field(default_factory=lambda: f"cr_{uuid.uuid4().hex[:8]}")
+    lead_id: str = ""
+    research_job_id: str | None = None
+    quality_result_id: str | None = None
     score: int = 0  # 0-100
-    level: str = "low"  # "high", "medium", "low", "conflict"
+    level: str = "low"  # "high", "medium", "low"
     positive_factors: list[str] = field(default_factory=list)
     negative_factors: list[str] = field(default_factory=list)
     conflicts: list[Conflict] = field(default_factory=list)
+    created_at: str = field(default_factory=lambda: date.today().isoformat())
 
     def to_dict(self) -> dict[str, Any]:
         return {
+            "confidence_result_id": self.confidence_result_id,
+            "lead_id": self.lead_id,
+            "research_job_id": self.research_job_id,
+            "quality_result_id": self.quality_result_id,
             "score": self.score,
             "level": self.level,
             "positive_factors": self.positive_factors,
@@ -228,6 +245,7 @@ class ConfidenceResult:
                 {"field": c.field, "values": c.values}
                 for c in self.conflicts
             ],
+            "created_at": self.created_at,
         }
 
 
@@ -236,9 +254,12 @@ class ReviewItem:
     """An item in the review queue."""
     review_id: str = field(default_factory=lambda: f"review_{uuid.uuid4().hex[:8]}")
     lead_id: str = ""
-    reason: str = ""  # "low_confidence", "conflict", "invalid_fields", "duplicate", "missing_fields"
+    reason: str = ""  # "medium_confidence", "low_confidence", "conflict", "possible_duplicate", "validation_failure"
     lead_data: dict[str, Any] = field(default_factory=dict)
-    confidence: dict[str, Any] = field(default_factory=dict)
+    confidence_score: int = 0
+    confidence_level: str = ""
+    confidence_result_id: str | None = None
+    quality_result_id: str | None = None
     issues: list[str] = field(default_factory=list)
     conflicts: list[dict[str, Any]] = field(default_factory=list)
     evidence_refs: list[str] = field(default_factory=list)
@@ -251,11 +272,39 @@ class ReviewItem:
             "lead_id": self.lead_id,
             "reason": self.reason,
             "lead_data": self.lead_data,
-            "confidence": self.confidence,
+            "confidence_score": self.confidence_score,
+            "confidence_level": self.confidence_level,
+            "confidence_result_id": self.confidence_result_id,
+            "quality_result_id": self.quality_result_id,
             "issues": self.issues,
             "conflicts": self.conflicts,
             "evidence_refs": self.evidence_refs,
             "status": self.status,
+            "created_at": self.created_at,
+        }
+
+
+@dataclass
+class DuplicateEvent:
+    """Record of a duplicate detection event."""
+    duplicate_event_id: str = field(default_factory=lambda: f"dup_{uuid.uuid4().hex[:8]}")
+    incoming_lead_id: str = ""
+    matched_master_id: str | None = None
+    match_type: str = ""  # "exact", "probable"
+    match_reason: str = ""  # "exact_email", "exact_linkedin", "same_domain_and_person"
+    quality_result_id: str | None = None
+    research_job_id: str | None = None
+    created_at: str = field(default_factory=lambda: date.today().isoformat())
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "duplicate_event_id": self.duplicate_event_id,
+            "incoming_lead_id": self.incoming_lead_id,
+            "matched_master_id": self.matched_master_id,
+            "match_type": self.match_type,
+            "match_reason": self.match_reason,
+            "quality_result_id": self.quality_result_id,
+            "research_job_id": self.research_job_id,
             "created_at": self.created_at,
         }
 
@@ -293,6 +342,7 @@ class LeadMaster:
     evidence_refs: list[str] = field(default_factory=list)
     raw_evidence_refs: list[str] = field(default_factory=list)
     quality_result_id: str | None = None
+    confidence_result_id: str | None = None
     review_id: str | None = None
     source_lead_json: dict[str, Any] = field(default_factory=dict)
 
@@ -325,6 +375,7 @@ class LeadMaster:
             "evidence_refs": self.evidence_refs,
             "raw_evidence_refs": self.raw_evidence_refs,
             "quality_result_id": self.quality_result_id,
+            "confidence_result_id": self.confidence_result_id,
             "review_id": self.review_id,
             "source_lead_json": self.source_lead_json,
             "status": self.status,

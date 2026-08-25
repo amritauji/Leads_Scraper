@@ -1,14 +1,16 @@
-"""Phase 2 Pipeline — connects Data Quality → Confidence → Review → Lead Master.
+"""Phase 2 Pipeline -- connects Data Quality -> Confidence -> Review -> Lead Master.
 
 This module orchestrates the post-research workflow:
     Standard Lead JSON
-        → Cleaning
-        → Validation
-        → Duplicate Detection
-        → Confidence Scoring
-        → Routing (high/low/conflict)
-        → Review Queue (if needed)
-        → Lead Master
+        -> Cleaning
+        -> Validation
+        -> Duplicate Detection
+        -> Confidence Scoring
+        -> Routing (high/low/conflict)
+        -> Review Queue (if needed)
+        -> Lead Master
+
+All intermediate results are persisted to SQLite for full lineage.
 """
 
 from __future__ import annotations
@@ -19,13 +21,17 @@ from typing import Any
 from app.models import (
     ConfidenceResult,
     DataQualityResult,
+    DuplicateEvent,
     LeadMaster,
     ReviewItem,
 )
 from app.quality.engine import run_quality_check
 from app.quality.confidence import calculate_confidence
-from app.review.queue import ReviewQueue
+from app.db.quality_store import QualityResultStore
+from app.db.confidence_store import ConfidenceResultStore
+from app.db.duplicate_store import DuplicateEventStore
 from app.lead_master.store import LeadMasterStore
+from app.review.queue import ReviewQueue
 
 
 # Confidence thresholds
@@ -34,15 +40,22 @@ LOW_CONFIDENCE_THRESHOLD = 40
 
 
 class Phase2Pipeline:
-    """Orchestrates the Data Quality → Lead Master pipeline."""
+    """Orchestrates the Data Quality -> Lead Master pipeline with full persistence."""
 
     def __init__(
         self,
-        review_queue: ReviewQueue | None = None,
+        db_path: str | None = None,
         lead_master: LeadMasterStore | None = None,
+        review_queue: ReviewQueue | None = None,
+        quality_store: QualityResultStore | None = None,
+        confidence_store: ConfidenceResultStore | None = None,
+        duplicate_store: DuplicateEventStore | None = None,
     ):
-        self.review_queue = review_queue or ReviewQueue()
-        self.lead_master = lead_master or LeadMasterStore()
+        self.lead_master = lead_master or LeadMasterStore(db_path)
+        self.review_queue = review_queue or ReviewQueue(db_path)
+        self.quality_store = quality_store or QualityResultStore(db_path)
+        self.confidence_store = confidence_store or ConfidenceResultStore(db_path)
+        self.duplicate_store = duplicate_store or DuplicateEventStore(db_path)
         self._stats = {
             "total": 0,
             "high_confidence": 0,
@@ -50,6 +63,7 @@ class Phase2Pipeline:
             "routed_to_review": 0,
             "added_to_master": 0,
             "duplicates_skipped": 0,
+            "duplicate_events_recorded": 0,
         }
 
     def process_leads(
@@ -57,15 +71,7 @@ class Phase2Pipeline:
         leads: list[dict[str, Any]],
         research_job_id: str | None = None,
     ) -> dict[str, Any]:
-        """Process a batch of Standard Lead JSONs through the full pipeline.
-
-        Args:
-            leads: List of Standard Lead JSON dicts.
-            research_job_id: Optional job ID for traceability.
-
-        Returns:
-            Summary of processing results.
-        """
+        """Process a batch of Standard Lead JSONs through the full pipeline."""
         self._stats = {
             "total": len(leads),
             "high_confidence": 0,
@@ -73,10 +79,10 @@ class Phase2Pipeline:
             "routed_to_review": 0,
             "added_to_master": 0,
             "duplicates_skipped": 0,
+            "duplicate_events_recorded": 0,
         }
 
         results: list[dict[str, Any]] = []
-
         for lead in leads:
             result = self.process_single_lead(lead, research_job_id)
             results.append(result)
@@ -91,19 +97,23 @@ class Phase2Pipeline:
         lead: dict[str, Any],
         research_job_id: str | None = None,
     ) -> dict[str, Any]:
-        """Process a single Standard Lead JSON through the full pipeline.
-
-        Returns:
-            Dict with dq_result, confidence, routing decision, and any created records.
-        """
+        """Process a single Standard Lead JSON through the full pipeline."""
         lead_id = lead.get("LeadId", f"lead_{uuid.uuid4().hex[:8]}")
 
         # Step 1: Data Quality Engine
         existing = self.lead_master.to_list()
-        dq_result = run_quality_check(lead, existing_leads=existing)
+        dq_result = run_quality_check(
+            lead, existing_leads=existing, lead_id=lead_id, research_job_id=research_job_id,
+        )
+
+        # Persist Data Quality Result
+        self.quality_store.add(dq_result)
 
         # Step 2: Confidence Engine
         confidence = calculate_confidence(dq_result, all_leads=existing)
+
+        # Persist Confidence Result
+        self.confidence_store.add(confidence)
 
         # Step 3: Routing
         routing = self._route(lead_id, dq_result, confidence, lead, research_job_id)
@@ -125,20 +135,31 @@ class Phase2Pipeline:
     ) -> dict[str, Any]:
         """Route lead based on confidence level and duplicate status."""
 
-        # Skip duplicates
+        # Duplicates: record event and skip
         if dq_result.duplicate_result.is_duplicate:
             self._stats["duplicates_skipped"] += 1
+            dup_event = DuplicateEvent(
+                incoming_lead_id=lead_id,
+                matched_master_id=dq_result.duplicate_result.matched_lead_id,
+                match_type=dq_result.duplicate_result.duplicate_type or "exact",
+                match_reason=dq_result.duplicate_result.match_reason or "unknown",
+                quality_result_id=dq_result.quality_result_id,
+                research_job_id=research_job_id,
+            )
+            self.duplicate_store.add(dup_event)
+            self._stats["duplicate_events_recorded"] += 1
             return {
                 "action": "duplicate_skipped",
+                "duplicate_event_id": dup_event.duplicate_event_id,
                 "matched_lead_id": dq_result.duplicate_result.matched_lead_id,
                 "match_reason": dq_result.duplicate_result.match_reason,
             }
 
-        # High confidence → direct to Lead Master
+        # High confidence -> direct to Lead Master
         if confidence.level == "high":
             self._stats["high_confidence"] += 1
             master = self._create_master_record(
-                dq_result, confidence, original_lead, research_job_id, review_id=None
+                dq_result, confidence, original_lead, research_job_id, review_id=None,
             )
             self._stats["added_to_master"] += 1
             return {
@@ -147,10 +168,10 @@ class Phase2Pipeline:
                 "confidence_score": confidence.score,
             }
 
-        # Low or conflict → Review Queue
+        # Medium or low confidence -> Review Queue
         self._stats["low_confidence"] += 1
         review_item = self._add_to_review(
-            lead_id, dq_result, confidence, original_lead
+            lead_id, dq_result, confidence, original_lead,
         )
         self._stats["routed_to_review"] += 1
 
@@ -190,10 +211,11 @@ class Phase2Pipeline:
             contact_email=cleaned.get("contact_email"),
             confidence_score=confidence.score,
             confidence_level=confidence.level,
+            confidence_result_id=confidence.confidence_result_id,
+            quality_result_id=dq_result.quality_result_id,
             data_quality_issues=dq_result.issues,
             evidence_refs=cleaned.get("evidence_refs", []),
             raw_evidence_refs=dq_result.original_lead.get("evidence_refs", []),
-            quality_result_id=None,
             review_id=review_id,
             source_lead_json=original_lead,
             status="accepted",
@@ -208,25 +230,17 @@ class Phase2Pipeline:
         confidence: ConfidenceResult,
         original_lead: dict[str, Any],
     ) -> ReviewItem:
-        """Add a lead to the review queue."""
-        # Determine primary reason
-        reason = "low_confidence"
-        if dq_result.conflicts:
-            reason = "conflict"
-        elif dq_result.duplicate_result.is_duplicate:
-            reason = "duplicate"
-        elif dq_result.issues:
-            invalid_issues = [i for i in dq_result.issues if "invalid" in i.lower()]
-            if invalid_issues:
-                reason = "invalid_fields"
-            else:
-                reason = "missing_fields"
+        """Add a lead to the review queue with full metadata."""
+        reason = self._determine_review_reason(dq_result, confidence)
 
         item = ReviewItem(
             lead_id=lead_id,
             reason=reason,
             lead_data=original_lead,
-            confidence=confidence.to_dict(),
+            confidence_score=confidence.score,
+            confidence_level=confidence.level,
+            confidence_result_id=confidence.confidence_result_id,
+            quality_result_id=dq_result.quality_result_id,
             issues=dq_result.issues,
             conflicts=[{"field": c.field, "values": c.values} for c in dq_result.conflicts],
             evidence_refs=original_lead.get("evidence_refs", []),
@@ -234,21 +248,32 @@ class Phase2Pipeline:
 
         return self.review_queue.add(item)
 
-    def approve_review(self, review_id: str) -> dict[str, Any] | None:
-        """Approve a review item and move it to Lead Master.
+    def _determine_review_reason(
+        self, dq_result: DataQualityResult, confidence: ConfidenceResult,
+    ) -> str:
+        """Determine the primary reason a lead needs review."""
+        if dq_result.conflicts:
+            return "conflict"
+        if dq_result.issues:
+            invalid_issues = [i for i in dq_result.issues if "invalid" in i.lower()]
+            if invalid_issues:
+                return "validation_failure"
+            return "low_confidence" if confidence.level == "low" else "medium_confidence"
+        return "medium_confidence" if confidence.level == "medium" else "low_confidence"
 
-        Returns:
-            The created LeadMaster dict, or None if not found.
-        """
+    def approve_review(self, review_id: str) -> dict[str, Any] | None:
+        """Approve a review item and move it to Lead Master."""
         item = self.review_queue.approve(review_id)
         if not item:
             return None
 
-        # Run quality + confidence on the lead data
+        # Re-run quality + confidence on the (possibly edited) lead data
         dq_result = run_quality_check(item.lead_data)
-        confidence = calculate_confidence(dq_result)
+        self.quality_store.add(dq_result)
 
-        # Create master record
+        confidence = calculate_confidence(dq_result)
+        self.confidence_store.add(confidence)
+
         master = self._create_master_record(
             dq_result, confidence, item.lead_data,
             research_job_id=None, review_id=review_id,

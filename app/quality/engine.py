@@ -18,18 +18,22 @@ from app.quality.duplicate import detect_duplicates
 def run_quality_check(
     lead: dict[str, Any],
     existing_leads: list[dict[str, Any]] | None = None,
+    lead_id: str | None = None,
+    research_job_id: str | None = None,
 ) -> DataQualityResult:
     """Run full data quality pipeline on a Standard Lead JSON.
 
     Steps:
-        1. Cleaning — normalize text, URLs, names, emails
-        2. Validation — check field formats and completeness
-        3. Duplicate Detection — match against existing leads
-        4. Conflict Detection — find contradictory evidence
+        1. Cleaning -- normalize text, URLs, names, emails
+        2. Validation -- check field formats and completeness
+        3. Duplicate Detection -- match against existing leads
+        4. Conflict Detection -- find contradictory evidence
 
     Args:
         lead: Standard Lead JSON dict.
         existing_leads: Existing Lead Master records for dedup (optional).
+        lead_id: Optional lead ID override.
+        research_job_id: Optional research job ID for traceability.
 
     Returns:
         DataQualityResult with original, cleaned, validation, duplicates, issues, conflicts.
@@ -57,6 +61,8 @@ def run_quality_check(
         issues.append(f"duplicate_detected: {dup_result.match_reason}")
 
     return DataQualityResult(
+        lead_id=lead_id or lead.get("LeadId", ""),
+        research_job_id=research_job_id,
         original_lead=lead,
         cleaned_lead=cleaned,
         validation=validation,
