@@ -24,3 +24,6 @@ EXA_API_KEY = get("EXA_API_KEY")
 TAVILY_API_KEY = get("TAVILY_API_KEY")
 FIRECRAWL_API_KEY = get("FIRECRAWL_API_KEY")
 HUNTER_API_KEY = get("HUNTER_API_KEY")
+
+# --- Database ----------------------------------------------------------------
+DATABASE_URL = get("DATABASE_URL")

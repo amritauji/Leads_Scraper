@@ -254,6 +254,7 @@ class ReviewItem:
     """An item in the review queue."""
     review_id: str = field(default_factory=lambda: f"review_{uuid.uuid4().hex[:8]}")
     lead_id: str = ""
+    research_job_id: str | None = None
     reason: str = ""  # "medium_confidence", "low_confidence", "conflict", "possible_duplicate", "validation_failure"
     lead_data: dict[str, Any] = field(default_factory=dict)
     confidence_score: int = 0
@@ -270,6 +271,7 @@ class ReviewItem:
         return {
             "review_id": self.review_id,
             "lead_id": self.lead_id,
+            "research_job_id": self.research_job_id,
             "reason": self.reason,
             "lead_data": self.lead_data,
             "confidence_score": self.confidence_score,

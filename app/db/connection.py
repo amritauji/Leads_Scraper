@@ -1,34 +1,35 @@
-"""Database connection manager."""
+"""PostgreSQL connection manager using psycopg2."""
 
 from __future__ import annotations
 
 import os
-import sqlite3
 from contextlib import contextmanager
 
-from app.db.schema import init_db
+import psycopg2
+import psycopg2.extras
 
-_default_db_path = os.path.join(
-    os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))),
-    "output", "leads.db",
-)
+from app.config import DATABASE_URL as _CONFIG_URL
 
 
-def get_connection(db_path: str | None = None) -> sqlite3.Connection:
-    """Get a SQLite connection. Creates file and tables if needed."""
-    path = db_path or _default_db_path
-    os.makedirs(os.path.dirname(path) or ".", exist_ok=True)
-    conn = sqlite3.connect(path)
-    conn.row_factory = sqlite3.Row
-    conn.execute("PRAGMA journal_mode=WAL")
-    conn.execute("PRAGMA foreign_keys=ON")
-    init_db(conn)
+def get_connection(db_url: str | None = None):
+    """Get a PostgreSQL connection.
+
+    Args:
+        db_url: Optional connection string. Falls back to DATABASE_URL env var.
+    """
+    url = db_url or _CONFIG_URL or os.environ.get("DATABASE_URL")
+    if not url:
+        raise RuntimeError(
+            "DATABASE_URL not set. Add it to .env or pass db_url explicitly."
+        )
+    conn = psycopg2.connect(url)
+    conn.autocommit = False
     return conn
 
 
 @contextmanager
-def db_transaction(conn: sqlite3.Connection):
-    """Context manager for transactions."""
+def db_transaction(conn):
+    """Context manager for PostgreSQL transactions."""
     try:
         yield conn
         conn.commit()

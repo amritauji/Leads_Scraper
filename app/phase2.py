@@ -171,7 +171,7 @@ class Phase2Pipeline:
         # Medium or low confidence -> Review Queue
         self._stats["low_confidence"] += 1
         review_item = self._add_to_review(
-            lead_id, dq_result, confidence, original_lead,
+            lead_id, dq_result, confidence, original_lead, research_job_id,
         )
         self._stats["routed_to_review"] += 1
 
@@ -229,12 +229,14 @@ class Phase2Pipeline:
         dq_result: DataQualityResult,
         confidence: ConfidenceResult,
         original_lead: dict[str, Any],
+        research_job_id: str | None,
     ) -> ReviewItem:
         """Add a lead to the review queue with full metadata."""
         reason = self._determine_review_reason(dq_result, confidence)
 
         item = ReviewItem(
             lead_id=lead_id,
+            research_job_id=research_job_id,
             reason=reason,
             lead_data=original_lead,
             confidence_score=confidence.score,
