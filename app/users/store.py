@@ -25,13 +25,14 @@ class UserStore:
         try:
             with conn.cursor() as cur:
                 cur.execute(
-                    """INSERT INTO users (user_id, name, email, role, is_active, created_at, updated_at)
-                       VALUES (%s, %s, %s, %s, %s, %s, %s)
+                    """INSERT INTO users (user_id, auth_user_id, name, email, role, is_active, created_at, updated_at)
+                       VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
                        ON CONFLICT (user_id) DO UPDATE SET
+                        auth_user_id = EXCLUDED.auth_user_id,
                         name = EXCLUDED.name, email = EXCLUDED.email, role = EXCLUDED.role,
                         is_active = EXCLUDED.is_active, updated_at = EXCLUDED.updated_at""",
-                    (user.user_id, user.name, user.email, user.role, user.is_active,
-                     user.created_at, user.updated_at),
+                    (user.user_id, user.auth_user_id, user.name, user.email, user.role,
+                     user.is_active, user.created_at, user.updated_at),
                 )
             conn.commit()
         except Exception:
@@ -46,6 +47,16 @@ class UserStore:
         try:
             with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
                 cur.execute("SELECT * FROM users WHERE user_id = %s", (user_id,))
+                row = cur.fetchone()
+                return self._row_to_user(row) if row else None
+        finally:
+            conn.close()
+
+    def get_by_auth_user_id(self, auth_user_id: str) -> AppUser | None:
+        conn = self._conn()
+        try:
+            with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+                cur.execute("SELECT * FROM users WHERE auth_user_id = %s", (auth_user_id,))
                 row = cur.fetchone()
                 return self._row_to_user(row) if row else None
         finally:
@@ -74,7 +85,7 @@ class UserStore:
             conn.close()
 
     def update(self, user_id: str, name: str | None = None, role: str | None = None,
-               is_active: bool | None = None) -> AppUser | None:
+               is_active: bool | None = None, auth_user_id: str | None = None) -> AppUser | None:
         conn = self._conn()
         try:
             with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
@@ -89,6 +100,9 @@ class UserStore:
                 if is_active is not None:
                     fields.append("is_active = %s")
                     params.append(is_active)
+                if auth_user_id is not None:
+                    fields.append("auth_user_id = %s")
+                    params.append(auth_user_id)
                 if not fields:
                     return self.get_by_id(user_id)
                 fields.append("updated_at = NOW()")
@@ -118,6 +132,7 @@ class UserStore:
     def _row_to_user(self, row: dict) -> AppUser:
         return AppUser(
             user_id=str(row["user_id"]),
+            auth_user_id=str(row["auth_user_id"]) if row.get("auth_user_id") else None,
             name=row["name"],
             email=row["email"],
             role=row["role"],

@@ -90,8 +90,8 @@ class ReviewQueue:
         finally:
             conn.close()
 
-    def approve(self, review_id: str) -> ReviewItem | None:
-        """Approve a review item."""
+    def approve(self, review_id: str, reviewed_by: str | None = None) -> ReviewItem | None:
+        """Approve a review item. Records reviewed_by if provided."""
         conn = self._conn()
         try:
             with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
@@ -100,8 +100,10 @@ class ReviewQueue:
                 if not row:
                     return None
                 cur.execute(
-                    "UPDATE review_queue SET status = 'approved', updated_at = NOW() WHERE review_id = %s",
-                    (review_id,),
+                    """UPDATE review_queue SET status = 'approved', updated_at = NOW(),
+                        reviewed_by = %s, reviewed_at = NOW()
+                       WHERE review_id = %s""",
+                    (reviewed_by, review_id),
                 )
             conn.commit()
             return self._row_to_item(row)
@@ -111,8 +113,8 @@ class ReviewQueue:
         finally:
             conn.close()
 
-    def reject(self, review_id: str) -> ReviewItem | None:
-        """Reject a review item."""
+    def reject(self, review_id: str, reviewed_by: str | None = None) -> ReviewItem | None:
+        """Reject a review item. Records reviewed_by if provided."""
         conn = self._conn()
         try:
             with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
@@ -121,8 +123,10 @@ class ReviewQueue:
                 if not row:
                     return None
                 cur.execute(
-                    "UPDATE review_queue SET status = 'rejected', updated_at = NOW() WHERE review_id = %s",
-                    (review_id,),
+                    """UPDATE review_queue SET status = 'rejected', updated_at = NOW(),
+                        reviewed_by = %s, reviewed_at = NOW()
+                       WHERE review_id = %s""",
+                    (reviewed_by, review_id),
                 )
             conn.commit()
             return self._row_to_item(row)
@@ -132,8 +136,8 @@ class ReviewQueue:
         finally:
             conn.close()
 
-    def edit_and_approve(self, review_id: str, edits: dict[str, Any]) -> ReviewItem | None:
-        """Apply edits to lead data and approve."""
+    def edit_and_approve(self, review_id: str, edits: dict[str, Any], reviewed_by: str | None = None) -> ReviewItem | None:
+        """Apply edits to lead data and approve. Records reviewed_by if provided."""
         conn = self._conn()
         try:
             with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
@@ -144,8 +148,10 @@ class ReviewQueue:
                 lead_data = row["lead_data"] if isinstance(row["lead_data"], dict) else json.loads(row["lead_data"])
                 lead_data.update(edits)
                 cur.execute(
-                    "UPDATE review_queue SET lead_data = %s, status = 'approved', updated_at = NOW() WHERE review_id = %s",
-                    (psycopg2.extras.Json(lead_data), review_id),
+                    """UPDATE review_queue SET lead_data = %s, status = 'approved',
+                        updated_at = NOW(), reviewed_by = %s, reviewed_at = NOW()
+                       WHERE review_id = %s""",
+                    (psycopg2.extras.Json(lead_data), reviewed_by, review_id),
                 )
             conn.commit()
             item = self.get_by_id(review_id)

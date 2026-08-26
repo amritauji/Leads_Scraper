@@ -265,13 +265,18 @@ class Phase2Pipeline:
             return "low_confidence" if confidence.level == "low" else "medium_confidence"
         return "medium_confidence" if confidence.level == "medium" else "low_confidence"
 
-    def approve_review(self, review_id: str) -> dict[str, Any] | None:
-        """Approve a review item and move it to Lead Master."""
+    def approve_review(self, review_id: str, reviewed_by: str | None = None) -> dict[str, Any] | None:
+        """Approve a review item and move it to Lead Master.
+
+        Args:
+            review_id: The review queue item ID.
+            reviewed_by: User ID of the manager/admin who approved (Phase 4 auth).
+        """
         from app.activities.store import ActivityStore
         from app.models import Activity
         import uuid
 
-        item = self.review_queue.approve(review_id)
+        item = self.review_queue.approve(review_id, reviewed_by=reviewed_by)
         if not item:
             return None
 
@@ -292,10 +297,10 @@ class Phase2Pipeline:
         activity_store.log(Activity(
             master_id=master.master_id,
             activity_type="review_approved",
-            performed_by=None,
+            performed_by=reviewed_by,
             title="Review approved",
             description=f"Review {review_id} approved, lead added to master",
-            metadata={"review_id": review_id},
+            metadata={"review_id": review_id, "reviewed_by": reviewed_by},
         ))
 
         return master.to_dict()

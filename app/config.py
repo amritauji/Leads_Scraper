@@ -28,6 +28,9 @@ HUNTER_API_KEY = get("HUNTER_API_KEY")
 # --- Database ----------------------------------------------------------------
 DATABASE_URL = get("DATABASE_URL")
 
+# --- Auth -------------------------------------------------------------------
+SUPABASE_JWT_SECRET = get("SUPABASE_JWT_SECRET")
+
 # --- Phase 3: Pipeline Stages -----------------------------------------------
 PIPELINE_STAGES = [
     "new",

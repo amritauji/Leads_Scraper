@@ -421,6 +421,7 @@ class LeadMaster:
 class AppUser:
     """Application user (identity layer, not full auth)."""
     user_id: str = field(default_factory=lambda: str(uuid.uuid4()))
+    auth_user_id: str | None = None  # Supabase auth.users.id
     name: str = ""
     email: str = ""
     role: str = "bd"  # "admin", "manager", "bd"
@@ -431,6 +432,7 @@ class AppUser:
     def to_dict(self) -> dict[str, Any]:
         return {
             "user_id": self.user_id,
+            "auth_user_id": self.auth_user_id,
             "name": self.name,
             "email": self.email,
             "role": self.role,
