@@ -10,7 +10,7 @@ This module orchestrates the post-research workflow:
         -> Review Queue (if needed)
         -> Lead Master
 
-All intermediate results are persisted to SQLite for full lineage.
+All intermediate results are persisted to Supabase PostgreSQL for full lineage.
 """
 
 from __future__ import annotations
@@ -31,6 +31,7 @@ from app.db.quality_store import QualityResultStore
 from app.db.confidence_store import ConfidenceResultStore
 from app.db.duplicate_store import DuplicateEventStore
 from app.lead_master.store import LeadMasterStore
+from app.lead_master.service import LeadMasterService
 from app.review.queue import ReviewQueue
 
 
@@ -56,6 +57,7 @@ class Phase2Pipeline:
         self.quality_store = quality_store or QualityResultStore(db_path)
         self.confidence_store = confidence_store or ConfidenceResultStore(db_path)
         self.duplicate_store = duplicate_store or DuplicateEventStore(db_path)
+        self.lead_service = LeadMasterService(db_path)
         self._stats = {
             "total": 0,
             "high_confidence": 0,
@@ -190,7 +192,7 @@ class Phase2Pipeline:
         research_job_id: str | None,
         review_id: str | None,
     ) -> LeadMaster:
-        """Create a Lead Master record from a high-confidence lead."""
+        """Create a Lead Master record via the service (auto-initializes Phase 3 fields + activity)."""
         cleaned = dq_result.cleaned_lead
 
         master = LeadMaster(
@@ -221,7 +223,7 @@ class Phase2Pipeline:
             status="accepted",
         )
 
-        return self.lead_master.add(master)
+        return self.lead_service.create_master_lead(master)
 
     def _add_to_review(
         self,
@@ -265,6 +267,10 @@ class Phase2Pipeline:
 
     def approve_review(self, review_id: str) -> dict[str, Any] | None:
         """Approve a review item and move it to Lead Master."""
+        from app.activities.store import ActivityStore
+        from app.models import Activity
+        import uuid
+
         item = self.review_queue.approve(review_id)
         if not item:
             return None
@@ -280,6 +286,17 @@ class Phase2Pipeline:
             dq_result, confidence, item.lead_data,
             research_job_id=None, review_id=review_id,
         )
+
+        # Log review_approved activity
+        activity_store = ActivityStore()
+        activity_store.log(Activity(
+            master_id=master.master_id,
+            activity_type="review_approved",
+            performed_by=None,
+            title="Review approved",
+            description=f"Review {review_id} approved, lead added to master",
+            metadata={"review_id": review_id},
+        ))
 
         return master.to_dict()
 

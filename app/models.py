@@ -349,9 +349,26 @@ class LeadMaster:
     source_lead_json: dict[str, Any] = field(default_factory=dict)
 
     # Status
-    status: str = "accepted"  # "accepted", "under_review", "merged"
+    status: str = "accepted"  # "accepted", "under_review", "merged", "archived"
     created_at: str = field(default_factory=lambda: date.today().isoformat())
     updated_at: str = field(default_factory=lambda: date.today().isoformat())
+
+    # Phase 3: Assignment
+    assigned_to: str | None = None  # UUID
+    assigned_at: str | None = None
+    assigned_by: str | None = None  # UUID
+
+    # Phase 3: Pipeline
+    pipeline_stage: str = "new"
+    pipeline_stage_at: str = field(default_factory=lambda: date.today().isoformat())
+    pipeline_changed_by: str | None = None  # UUID
+
+    # Phase 3: Priority
+    priority: str = "medium"  # "low", "medium", "high"
+
+    # Phase 3: Next Action
+    next_action_at: str | None = None
+    next_action_type: str | None = None  # "call", "email", "meeting", "follow_up", "other"
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -381,6 +398,114 @@ class LeadMaster:
             "review_id": self.review_id,
             "source_lead_json": self.source_lead_json,
             "status": self.status,
+            "assigned_to": self.assigned_to,
+            "assigned_at": self.assigned_at,
+            "assigned_by": self.assigned_by,
+            "pipeline_stage": self.pipeline_stage,
+            "pipeline_stage_at": self.pipeline_stage_at,
+            "pipeline_changed_by": self.pipeline_changed_by,
+            "priority": self.priority,
+            "next_action_at": self.next_action_at,
+            "next_action_type": self.next_action_type,
             "created_at": self.created_at,
             "updated_at": self.updated_at,
+        }
+
+
+# ============================================================================
+# Phase 3: Users, Assignment, Pipeline, Activities
+# ============================================================================
+
+
+@dataclass
+class AppUser:
+    """Application user (identity layer, not full auth)."""
+    user_id: str = field(default_factory=lambda: str(uuid.uuid4()))
+    name: str = ""
+    email: str = ""
+    role: str = "bd"  # "admin", "manager", "bd"
+    is_active: bool = True
+    created_at: str = field(default_factory=lambda: date.today().isoformat())
+    updated_at: str = field(default_factory=lambda: date.today().isoformat())
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "user_id": self.user_id,
+            "name": self.name,
+            "email": self.email,
+            "role": self.role,
+            "is_active": self.is_active,
+            "created_at": self.created_at,
+            "updated_at": self.updated_at,
+        }
+
+
+@dataclass
+class AssignmentRecord:
+    """Record of a lead assignment action."""
+    assignment_id: str = field(default_factory=lambda: str(uuid.uuid4()))
+    master_id: str = ""
+    assigned_to: str = ""  # UUID
+    assigned_by: str = ""  # UUID
+    action: str = ""  # "assigned", "reassigned", "unassigned"
+    reason: str | None = None
+    created_at: str = field(default_factory=lambda: date.today().isoformat())
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "assignment_id": self.assignment_id,
+            "master_id": self.master_id,
+            "assigned_to": self.assigned_to,
+            "assigned_by": self.assigned_by,
+            "action": self.action,
+            "reason": self.reason,
+            "created_at": self.created_at,
+        }
+
+
+@dataclass
+class PipelineTransition:
+    """Record of a pipeline stage change."""
+    transition_id: str = field(default_factory=lambda: str(uuid.uuid4()))
+    master_id: str = ""
+    from_stage: str | None = None
+    to_stage: str = ""
+    changed_by: str | None = None  # UUID
+    reason: str | None = None
+    created_at: str = field(default_factory=lambda: date.today().isoformat())
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "transition_id": self.transition_id,
+            "master_id": self.master_id,
+            "from_stage": self.from_stage,
+            "to_stage": self.to_stage,
+            "changed_by": self.changed_by,
+            "reason": self.reason,
+            "created_at": self.created_at,
+        }
+
+
+@dataclass
+class Activity:
+    """An audit trail entry for a lead."""
+    activity_id: str = field(default_factory=lambda: str(uuid.uuid4()))
+    master_id: str = ""
+    activity_type: str = ""
+    performed_by: str | None = None  # UUID
+    title: str = ""
+    description: str | None = None
+    metadata: dict[str, Any] = field(default_factory=dict)
+    created_at: str = field(default_factory=lambda: date.today().isoformat())
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "activity_id": self.activity_id,
+            "master_id": self.master_id,
+            "activity_type": self.activity_type,
+            "performed_by": self.performed_by,
+            "title": self.title,
+            "description": self.description,
+            "metadata": self.metadata,
+            "created_at": self.created_at,
         }

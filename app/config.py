@@ -27,3 +27,48 @@ HUNTER_API_KEY = get("HUNTER_API_KEY")
 
 # --- Database ----------------------------------------------------------------
 DATABASE_URL = get("DATABASE_URL")
+
+# --- Phase 3: Pipeline Stages -----------------------------------------------
+PIPELINE_STAGES = [
+    "new",
+    "assigned",
+    "contacted",
+    "qualified",
+    "opportunity",
+    "won",
+    "lost",
+]
+
+# --- Phase 3: Activity Types ------------------------------------------------
+ACTIVITY_TYPES = [
+    "lead_created",
+    "lead_assigned",
+    "lead_reassigned",
+    "lead_unassigned",
+    "stage_changed",
+    "priority_changed",
+    "next_action_set",
+    "next_action_cleared",
+    "review_approved",
+    "review_rejected",
+    "note_added",
+    "call_logged",
+    "email_logged",
+    "meeting_logged",
+    "status_changed",
+]
+
+MANUAL_ACTIVITY_TYPES = [
+    "note_added",
+    "call_logged",
+    "email_logged",
+    "meeting_logged",
+]
+
+NEXT_ACTION_TYPES = [
+    "call",
+    "email",
+    "meeting",
+    "follow_up",
+    "other",
+]

@@ -279,6 +279,279 @@ def get_duplicate_events():
     return jsonify({"events": events, "count": len(events)})
 
 
+# ============================================================================
+# Phase 3: Users
+# ============================================================================
+
+@app.route("/api/users", methods=["GET"])
+def list_users():
+    from app.users.store import UserStore
+    store = UserStore()
+    active_only = request.args.get("active_only", "false").lower() == "true"
+    users = [u.to_dict() for u in store.get_all(active_only=active_only)]
+    return jsonify({"users": users, "count": len(users)})
+
+
+@app.route("/api/users", methods=["POST"])
+def create_user():
+    from app.users.store import UserStore
+    from app.models import AppUser
+    data = request.get_json(force=True)
+    name = data.get("name", "").strip()
+    email = data.get("email", "").strip()
+    role = data.get("role", "bd").strip()
+    if not name or not email:
+        return jsonify({"error": "name and email are required"}), 400
+    if role not in ("admin", "manager", "bd"):
+        return jsonify({"error": "role must be admin, manager, or bd"}), 400
+    store = UserStore()
+    if store.get_by_email(email):
+        return jsonify({"error": "email already exists"}), 409
+    user = AppUser(name=name, email=email, role=role)
+    user = store.add(user)
+    return jsonify(user.to_dict()), 201
+
+
+@app.route("/api/users/<user_id>", methods=["GET"])
+def get_user(user_id: str):
+    from app.users.store import UserStore
+    store = UserStore()
+    user = store.get_by_id(user_id)
+    if user:
+        return jsonify(user.to_dict())
+    return jsonify({"error": "not found"}), 404
+
+
+@app.route("/api/users/<user_id>", methods=["PATCH"])
+def update_user(user_id: str):
+    from app.users.store import UserStore
+    store = UserStore()
+    data = request.get_json(force=True)
+    name = data.get("name")
+    role = data.get("role")
+    is_active = data.get("is_active")
+    if role is not None and role not in ("admin", "manager", "bd"):
+        return jsonify({"error": "role must be admin, manager, or bd"}), 400
+    user = store.update(user_id, name=name, role=role, is_active=is_active)
+    if user:
+        return jsonify(user.to_dict())
+    return jsonify({"error": "not found"}), 404
+
+
+# ============================================================================
+# Phase 3: Lead Master enhanced listing
+# ============================================================================
+
+@app.route("/api/lead-master")
+def get_lead_master():
+    """Get Lead Master records with optional filters."""
+    from app.lead_master.store import LeadMasterStore
+    store = LeadMasterStore()
+    filters = {}
+    for key in ("assigned_to", "pipeline_stage", "priority", "status", "confidence_level"):
+        val = request.args.get(key)
+        if val:
+            filters[key] = val
+    limit = int(request.args.get("limit", 100))
+    offset = int(request.args.get("offset", 0))
+    records = store.get_all(limit=limit, offset=offset, **filters)
+    return jsonify({"records": [r.to_dict() for r in records], "count": store.count()})
+
+
+# ============================================================================
+# Phase 3: Assignment
+# ============================================================================
+
+@app.route("/api/lead-master/<master_id>/assign", methods=["POST"])
+def assign_lead(master_id: str):
+    from app.lead_master.service import LeadMasterService
+    data = request.get_json(force=True)
+    assigned_to = data.get("assigned_to", "").strip()
+    assigned_by = data.get("assigned_by", "").strip()
+    reason = data.get("reason")
+    if not assigned_to or not assigned_by:
+        return jsonify({"error": "assigned_to and assigned_by are required"}), 400
+    try:
+        svc = LeadMasterService()
+        lead = svc.assign(master_id, assigned_to, assigned_by, reason)
+        return jsonify(lead.to_dict())
+    except ValueError as e:
+        return jsonify({"error": str(e)}), 404
+
+
+@app.route("/api/lead-master/<master_id>/reassign", methods=["POST"])
+def reassign_lead(master_id: str):
+    from app.lead_master.service import LeadMasterService
+    data = request.get_json(force=True)
+    new_user = data.get("assigned_to", "").strip()
+    assigned_by = data.get("assigned_by", "").strip()
+    reason = data.get("reason")
+    if not new_user or not assigned_by:
+        return jsonify({"error": "assigned_to and assigned_by are required"}), 400
+    try:
+        svc = LeadMasterService()
+        lead = svc.reassign(master_id, new_user, assigned_by, reason)
+        return jsonify(lead.to_dict())
+    except ValueError as e:
+        return jsonify({"error": str(e)}), 404
+
+
+@app.route("/api/lead-master/<master_id>/unassign", methods=["POST"])
+def unassign_lead(master_id: str):
+    from app.lead_master.service import LeadMasterService
+    data = request.get_json(force=True)
+    performed_by = data.get("performed_by", "").strip()
+    reason = data.get("reason")
+    if not performed_by:
+        return jsonify({"error": "performed_by is required"}), 400
+    try:
+        svc = LeadMasterService()
+        lead = svc.unassign(master_id, performed_by, reason)
+        return jsonify(lead.to_dict())
+    except ValueError as e:
+        return jsonify({"error": str(e)}), 404
+
+
+@app.route("/api/lead-master/<master_id>/assignment-history")
+def assignment_history(master_id: str):
+    from app.lead_master.service import LeadMasterService
+    svc = LeadMasterService()
+    history = svc.get_assignment_history(master_id)
+    return jsonify({"history": [h.to_dict() for h in history], "count": len(history)})
+
+
+# ============================================================================
+# Phase 3: Pipeline
+# ============================================================================
+
+@app.route("/api/lead-master/<master_id>/stage", methods=["POST"])
+def change_stage(master_id: str):
+    from app.lead_master.service import LeadMasterService
+    from app.config import PIPELINE_STAGES
+    data = request.get_json(force=True)
+    to_stage = data.get("stage", "").strip()
+    changed_by = data.get("changed_by", "").strip()
+    reason = data.get("reason")
+    if not to_stage:
+        return jsonify({"error": "stage is required"}), 400
+    if to_stage not in PIPELINE_STAGES:
+        return jsonify({"error": f"Invalid stage. Valid: {PIPELINE_STAGES}"}), 400
+    if not changed_by:
+        return jsonify({"error": "changed_by is required"}), 400
+    try:
+        svc = LeadMasterService()
+        lead = svc.change_stage(master_id, to_stage, changed_by, reason)
+        return jsonify(lead.to_dict())
+    except ValueError as e:
+        return jsonify({"error": str(e)}), 404
+
+
+@app.route("/api/lead-master/<master_id>/pipeline-history")
+def pipeline_history(master_id: str):
+    from app.lead_master.service import LeadMasterService
+    svc = LeadMasterService()
+    history = svc.get_pipeline_history(master_id)
+    return jsonify({"history": [h.to_dict() for h in history], "count": len(history)})
+
+
+# ============================================================================
+# Phase 3: Priority
+# ============================================================================
+
+@app.route("/api/lead-master/<master_id>/priority", methods=["POST"])
+def change_priority(master_id: str):
+    from app.lead_master.service import LeadMasterService
+    data = request.get_json(force=True)
+    priority = data.get("priority", "").strip()
+    performed_by = data.get("performed_by", "").strip()
+    if not priority:
+        return jsonify({"error": "priority is required"}), 400
+    if priority not in ("low", "medium", "high"):
+        return jsonify({"error": "priority must be low, medium, or high"}), 400
+    if not performed_by:
+        return jsonify({"error": "performed_by is required"}), 400
+    try:
+        svc = LeadMasterService()
+        lead = svc.change_priority(master_id, priority, performed_by)
+        return jsonify(lead.to_dict())
+    except ValueError as e:
+        return jsonify({"error": str(e)}), 404
+
+
+# ============================================================================
+# Phase 3: Next Action
+# ============================================================================
+
+@app.route("/api/lead-master/<master_id>/next-action", methods=["POST"])
+def set_next_action(master_id: str):
+    from app.lead_master.service import LeadMasterService
+    data = request.get_json(force=True)
+    action_type = data.get("action_type", "").strip()
+    action_at = data.get("action_at", "").strip()
+    performed_by = data.get("performed_by", "").strip()
+    if not action_type or not action_at or not performed_by:
+        return jsonify({"error": "action_type, action_at, and performed_by are required"}), 400
+    if action_type not in ("call", "email", "meeting", "follow_up", "other"):
+        return jsonify({"error": "Invalid action_type"}), 400
+    try:
+        svc = LeadMasterService()
+        lead = svc.set_next_action(master_id, action_type, action_at, performed_by)
+        return jsonify(lead.to_dict())
+    except ValueError as e:
+        return jsonify({"error": str(e)}), 404
+
+
+@app.route("/api/lead-master/<master_id>/next-action", methods=["DELETE"])
+def clear_next_action(master_id: str):
+    from app.lead_master.service import LeadMasterService
+    data = request.get_json(force=True) if request.data else {}
+    performed_by = data.get("performed_by", "").strip()
+    if not performed_by:
+        return jsonify({"error": "performed_by is required"}), 400
+    try:
+        svc = LeadMasterService()
+        lead = svc.clear_next_action(master_id, performed_by)
+        return jsonify(lead.to_dict())
+    except ValueError as e:
+        return jsonify({"error": str(e)}), 404
+
+
+# ============================================================================
+# Phase 3: Activities
+# ============================================================================
+
+@app.route("/api/lead-master/<master_id>/activities")
+def get_activities(master_id: str):
+    from app.lead_master.service import LeadMasterService
+    limit = int(request.args.get("limit", 50))
+    offset = int(request.args.get("offset", 0))
+    svc = LeadMasterService()
+    activities = svc.get_activities(master_id, limit, offset)
+    return jsonify({"activities": [a.to_dict() for a in activities], "count": len(activities)})
+
+
+@app.route("/api/lead-master/<master_id>/activities", methods=["POST"])
+def log_activity(master_id: str):
+    from app.lead_master.service import LeadMasterService
+    from app.config import MANUAL_ACTIVITY_TYPES
+    data = request.get_json(force=True)
+    activity_type = data.get("activity_type", "").strip()
+    performed_by = data.get("performed_by", "").strip()
+    title = data.get("title", "").strip()
+    description = data.get("description")
+    metadata = data.get("metadata", {})
+    if not activity_type or not performed_by or not title:
+        return jsonify({"error": "activity_type, performed_by, and title are required"}), 400
+    if activity_type not in MANUAL_ACTIVITY_TYPES:
+        return jsonify({"error": f"Invalid type. Manual types: {MANUAL_ACTIVITY_TYPES}"}), 400
+    try:
+        svc = LeadMasterService()
+        activity = svc.log_manual_activity(master_id, activity_type, performed_by, title, description, metadata)
+        return jsonify(activity.to_dict()), 201
+    except ValueError as e:
+        return jsonify({"error": str(e)}), 404
+
+
 # ---------------------------------------------------------------------------
 if __name__ == "__main__":
     print("\n  Lead Research Agent — http://localhost:5000\n")

@@ -34,9 +34,13 @@ class LeadMasterStore:
                         marketing_head_linkedin, contact_email, confidence_score,
                         confidence_level, confidence_result_id, quality_result_id,
                         data_quality_issues, evidence_refs, raw_evidence_refs,
-                        review_id, source_lead_json, status, created_at, updated_at)
+                        review_id, source_lead_json, status, created_at, updated_at,
+                        assigned_to, assigned_at, assigned_by,
+                        pipeline_stage, pipeline_stage_at, pipeline_changed_by,
+                        priority, next_action_at, next_action_type)
                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s,
-                               %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                               %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s,
+                               %s, %s, %s, %s, %s, %s)
                        ON CONFLICT (master_id) DO UPDATE SET
                         company_name = EXCLUDED.company_name,
                         website = EXCLUDED.website,
@@ -49,6 +53,15 @@ class LeadMasterStore:
                         evidence_refs = EXCLUDED.evidence_refs,
                         review_id = EXCLUDED.review_id,
                         status = EXCLUDED.status,
+                        assigned_to = EXCLUDED.assigned_to,
+                        assigned_at = EXCLUDED.assigned_at,
+                        assigned_by = EXCLUDED.assigned_by,
+                        pipeline_stage = EXCLUDED.pipeline_stage,
+                        pipeline_stage_at = EXCLUDED.pipeline_stage_at,
+                        pipeline_changed_by = EXCLUDED.pipeline_changed_by,
+                        priority = EXCLUDED.priority,
+                        next_action_at = EXCLUDED.next_action_at,
+                        next_action_type = EXCLUDED.next_action_type,
                         updated_at = EXCLUDED.updated_at""",
                     (
                         record.master_id,
@@ -79,6 +92,15 @@ class LeadMasterStore:
                         record.status,
                         record.created_at,
                         record.updated_at,
+                        record.assigned_to,
+                        record.assigned_at,
+                        record.assigned_by,
+                        record.pipeline_stage,
+                        record.pipeline_stage_at,
+                        record.pipeline_changed_by,
+                        record.priority,
+                        record.next_action_at,
+                        record.next_action_type,
                     ),
                 )
             conn.commit()
@@ -115,12 +137,52 @@ class LeadMasterStore:
         finally:
             conn.close()
 
-    def get_all(self) -> list[LeadMaster]:
-        """Retrieve all Lead Master records."""
+    def get_all(
+        self,
+        assigned_to: str | None = None,
+        pipeline_stage: str | None = None,
+        priority: str | None = None,
+        status: str | None = None,
+        confidence_level: str | None = None,
+        next_action_before: str | None = None,
+        next_action_after: str | None = None,
+        limit: int = 100,
+        offset: int = 0,
+    ) -> list[LeadMaster]:
+        """Retrieve Lead Master records with optional filters."""
         conn = self._conn()
         try:
             with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
-                cur.execute("SELECT * FROM lead_master ORDER BY created_at DESC")
+                conditions = []
+                params = []
+                if assigned_to:
+                    conditions.append("assigned_to = %s")
+                    params.append(assigned_to)
+                if pipeline_stage:
+                    conditions.append("pipeline_stage = %s")
+                    params.append(pipeline_stage)
+                if priority:
+                    conditions.append("priority = %s")
+                    params.append(priority)
+                if status:
+                    conditions.append("status = %s")
+                    params.append(status)
+                if confidence_level:
+                    conditions.append("confidence_level = %s")
+                    params.append(confidence_level)
+                if next_action_before:
+                    conditions.append("next_action_at <= %s")
+                    params.append(next_action_before)
+                if next_action_after:
+                    conditions.append("next_action_at >= %s")
+                    params.append(next_action_after)
+
+                where = f" WHERE {' AND '.join(conditions)}" if conditions else ""
+                params.extend([limit, offset])
+                cur.execute(
+                    f"SELECT * FROM lead_master{where} ORDER BY created_at DESC LIMIT %s OFFSET %s",
+                    params,
+                )
                 return [self._row_to_record(r) for r in cur.fetchall()]
         finally:
             conn.close()
@@ -185,4 +247,13 @@ class LeadMasterStore:
             status=row["status"] or "accepted",
             created_at=str(row["created_at"]),
             updated_at=str(row["updated_at"]),
+            assigned_to=str(row["assigned_to"]) if row.get("assigned_to") else None,
+            assigned_at=str(row["assigned_at"]) if row.get("assigned_at") else None,
+            assigned_by=str(row["assigned_by"]) if row.get("assigned_by") else None,
+            pipeline_stage=row["pipeline_stage"] or "new",
+            pipeline_stage_at=str(row["pipeline_stage_at"]) if row.get("pipeline_stage_at") else str(row["created_at"]),
+            pipeline_changed_by=str(row["pipeline_changed_by"]) if row.get("pipeline_changed_by") else None,
+            priority=row["priority"] or "medium",
+            next_action_at=str(row["next_action_at"]) if row.get("next_action_at") else None,
+            next_action_type=row.get("next_action_type"),
         )
