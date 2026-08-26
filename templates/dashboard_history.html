@@ -1,0 +1,204 @@
+{% extends "_shell.html" %}
+{% set nav = 'history' %}
+{% block title %}History — LeadForge{% endblock %}
+{% block header %}Research <span class="gradient-text">history</span>{% endblock %}
+{% block subheader %}Every research job this workspace has run, newest first.{% endblock %}
+
+{% block extra_head %}
+<style>
+  .toolbar {
+    display: flex; justify-content: space-between; align-items: center;
+    margin-bottom: 20px; gap: 12px; flex-wrap: wrap;
+  }
+  .toolbar .filters { display: flex; gap: 8px; flex-wrap: wrap; }
+  .toolbar .filter {
+    padding: 8px 14px; border-radius: 999px; font-size: 13px;
+    background: rgba(255,255,255,.04); border: 1px solid var(--line);
+    color: var(--fg-2); cursor: pointer;
+  }
+  .toolbar .filter.active { background: rgba(139, 92, 246, .15); border-color: rgba(139, 92, 246, .35); color: #fff; }
+
+  .search {
+    width: 260px;
+    background: rgba(0,0,0,.35); border: 1px solid var(--line);
+    border-radius: 999px; padding: 8px 14px 8px 36px;
+    color: var(--fg); font-size: 13px;
+    background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 16 16' fill='none'><circle cx='7' cy='7' r='5' stroke='%237a7a95' stroke-width='1.5'/><path d='M11 11l3 3' stroke='%237a7a95' stroke-width='1.5' stroke-linecap='round'/></svg>");
+    background-repeat: no-repeat; background-position: 12px center;
+  }
+  .search:focus { outline: none; border-color: rgba(236, 72, 153, .55); }
+
+  .grid-stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-bottom: 24px; }
+  @media (max-width: 800px) { .grid-stats { grid-template-columns: repeat(2, 1fr); } }
+  .stat-card { padding: 20px; position: relative; overflow: hidden; }
+  .stat-card .label { color: var(--fg-3); font-size: 12px; text-transform: uppercase; letter-spacing: .06em; }
+  .stat-card .value { font-size: 28px; font-weight: 700; letter-spacing: -.02em; margin-top: 4px; }
+
+  .table-card { padding: 0; overflow: hidden; }
+  table { width: 100%; border-collapse: collapse; }
+  thead th {
+    text-align: left; padding: 14px 20px;
+    font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .08em;
+    color: var(--fg-3); background: rgba(255,255,255,.02);
+    border-bottom: 1px solid var(--line);
+  }
+  tbody td { padding: 14px 20px; border-bottom: 1px solid var(--line); font-size: 13px; vertical-align: middle; }
+  tbody tr:last-child td { border-bottom: 0; }
+  tbody tr:hover { background: rgba(255,255,255,.02); }
+
+  .query-cell .q { font-weight: 500; color: var(--fg); }
+  .query-cell .id { color: var(--fg-3); font-size: 11px; font-family: 'JetBrains Mono', monospace; margin-top: 2px; }
+
+  .status-pill.complete  { background: rgba(52, 211, 153, .1); color: #6ee7b7; border: 1px solid rgba(52, 211, 153, .3); }
+  .status-pill.running   { background: rgba(139, 92, 246, .1); color: #c4b5fd; border: 1px solid rgba(139, 92, 246, .3); }
+  .status-pill.error     { background: rgba(248, 113, 113, .1); color: #fca5a5; border: 1px solid rgba(248, 113, 113, .3); }
+  .status-pill { padding: 3px 10px; border-radius: 999px; font-size: 11px; font-weight: 500; }
+
+  .dur { font-family: 'JetBrains Mono', monospace; color: var(--fg-2); font-size: 12px; }
+  .empty { padding: 60px 20px; text-align: center; color: var(--fg-3); }
+  .empty h3 { color: var(--fg); font-weight: 600; margin: 0 0 6px; font-size: 15px; }
+</style>
+{% endblock %}
+
+{% block content %}
+<section class="grid-stats">
+  <div class="card stat-card"><div class="label">Total jobs</div><div class="value" id="statTotal">—</div></div>
+  <div class="card stat-card"><div class="label">Completed</div><div class="value" id="statOk">—</div></div>
+  <div class="card stat-card"><div class="label">Running</div><div class="value" id="statRunning">—</div></div>
+  <div class="card stat-card"><div class="label">Total leads</div><div class="value" id="statLeads">—</div></div>
+</section>
+
+<section class="toolbar">
+  <div class="filters">
+    <button class="filter active" data-filter="all">All</button>
+    <button class="filter" data-filter="complete">Completed</button>
+    <button class="filter" data-filter="running">Running</button>
+    <button class="filter" data-filter="error">Errors</button>
+  </div>
+  <input class="search" id="search" type="search" placeholder="Search by query or requester…">
+</section>
+
+<section class="card table-card">
+  <div style="overflow-x:auto;">
+    <table>
+      <thead>
+        <tr>
+          <th>Query</th>
+          <th>Requester</th>
+          <th>Started</th>
+          <th>Duration</th>
+          <th>Leads</th>
+          <th>Status</th>
+          <th style="text-align:right;">Actions</th>
+        </tr>
+      </thead>
+      <tbody id="jobsBody">
+        <tr><td colspan="7" class="empty">Loading history…</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  const tbody     = document.getElementById("jobsBody");
+  const search    = document.getElementById("search");
+  const filterBtns = [...document.querySelectorAll(".filter")];
+  let jobs = [];
+  let active = "all";
+
+  function escapeHtml(s) {
+    return String(s ?? "").replace(/[&<>"']/g, c => ({
+      "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"
+    }[c]));
+  }
+
+  function duration(a, b) {
+    if (!a) return "—";
+    const start = Date.parse(a + "Z");
+    const end   = b ? Date.parse(b + "Z") : Date.now();
+    const s = Math.max(0, Math.round((end - start) / 1000));
+    if (s < 60) return `${s}s`;
+    const m = Math.floor(s / 60), r = s % 60;
+    return `${m}m ${r}s`;
+  }
+
+  function shortWhen(iso) {
+    if (!iso) return "—";
+    return iso.replace("T", " ").slice(0, 16);
+  }
+
+  function renderRow(j) {
+    const status = j.status || "running";
+    return `
+      <tr>
+        <td class="query-cell">
+          <div class="q">${escapeHtml(j.query || "—")}</div>
+          <div class="id">${escapeHtml(j.id)} · max ${j.max_companies || 5}</div>
+        </td>
+        <td>${escapeHtml(j.requester || "—")}</td>
+        <td class="dur">${escapeHtml(shortWhen(j.started_at))}</td>
+        <td class="dur">${duration(j.started_at, j.finished_at)}</td>
+        <td><b>${j.lead_count ?? 0}</b></td>
+        <td><span class="status-pill ${status}">${status.toUpperCase()}</span></td>
+        <td style="text-align:right;">
+          ${status === "complete"
+            ? `<a class="btn btn-ghost btn-sm" href="/output/leads.json" download>Download</a>`
+            : status === "error"
+              ? `<span class="muted-2" title="${escapeHtml(j.error || '')}">see error</span>`
+              : `<span class="muted-2">—</span>`}
+        </td>
+      </tr>
+    `;
+  }
+
+  function paint() {
+    const q = search.value.trim().toLowerCase();
+    const rows = jobs.filter(j => {
+      if (active !== "all" && (j.status || "running") !== active) return false;
+      if (!q) return true;
+      return (`${j.query} ${j.requester}`).toLowerCase().includes(q);
+    });
+    tbody.innerHTML = rows.length
+      ? rows.map(renderRow).join("")
+      : `<tr><td colspan="7" class="empty">
+          <h3>Nothing here yet</h3>
+          Kick off a research job from the Research console.
+        </td></tr>`;
+  }
+
+  function paintStats() {
+    document.getElementById("statTotal").textContent   = jobs.length;
+    document.getElementById("statOk").textContent      = jobs.filter(j => j.status === "complete").length;
+    document.getElementById("statRunning").textContent = jobs.filter(j => (j.status || "running") === "running").length;
+    document.getElementById("statLeads").textContent   = jobs.reduce((n, j) => n + (j.lead_count || 0), 0);
+  }
+
+  filterBtns.forEach(b => b.addEventListener("click", () => {
+    filterBtns.forEach(x => x.classList.remove("active"));
+    b.classList.add("active");
+    active = b.dataset.filter;
+    paint();
+  }));
+  search.addEventListener("input", paint);
+
+  async function load() {
+    try {
+      const r = await fetch("/api/jobs", { credentials: "same-origin" });
+      if (!r.ok) throw new Error("HTTP " + r.status);
+      const data = await r.json();
+      jobs = data.jobs || [];
+      paintStats();
+      paint();
+    } catch (e) {
+      tbody.innerHTML = `<tr><td colspan="7" class="empty">
+        <h3>Couldn't load history</h3>${escapeHtml(e.message)}
+      </td></tr>`;
+    }
+  }
+  load();
+  // Refresh every 5s so running jobs update in place
+  setInterval(load, 5000);
+</script>
+{% endblock %}

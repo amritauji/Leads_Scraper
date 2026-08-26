@@ -1,0 +1,126 @@
+[
+  {
+    "LeadId": "lead_3f1f0c2a",
+    "Date": "2026-08-18",
+    "Category": null,
+    "Segment": null,
+    "Industry": null,
+    "Company Name": "Decentro",
+    "Website": "decentro.tech",
+    "Founded": "2020",
+    "Revenue": "$2M",
+    "City/Country": "India",
+    "Ceo/Founder Name": "Rohit Taneja",
+    "CEO Linkedn": null,
+    "Marketing Head name": "Avanindra Jha",
+    "Marketing Head Linkedn": null,
+    "Contact email": "rohit@decentro.tech",
+    "evidence_refs": [
+      "evidence_06c031e8",
+      "evidence_5c4419db",
+      "evidence_21c6756e",
+      "evidence_b243b91a"
+    ],
+    "missing_fields": [
+      "Industry"
+    ]
+  },
+  {
+    "LeadId": "lead_e5567fed",
+    "Date": "2026-08-18",
+    "Category": "AI",
+    "Segment": null,
+    "Industry": "AI",
+    "Company Name": "Intellabel",
+    "Website": "intellabel.com",
+    "Founded": "2019",
+    "Revenue": null,
+    "City/Country": "India",
+    "Ceo/Founder Name": "Sunil Kamal",
+    "CEO Linkedn": null,
+    "Marketing Head name": "Sai Kumar Achari",
+    "Marketing Head Linkedn": null,
+    "Contact email": "rohit@decentro.tech",
+    "evidence_refs": [
+      "evidence_45f0cbd0",
+      "evidence_95f815bd",
+      "evidence_fd5067d7",
+      "evidence_58997594"
+    ],
+    "missing_fields": [
+      "Revenue"
+    ]
+  },
+  {
+    "LeadId": "lead_2f6a6ef3",
+    "Date": "2026-08-18",
+    "Category": "SAAS",
+    "Segment": null,
+    "Industry": "SAAS",
+    "Company Name": "Superleap AI CRM",
+    "Website": "superleap.com",
+    "Founded": "2024",
+    "Revenue": "$65B",
+    "City/Country": "India",
+    "Ceo/Founder Name": "Subham Kumar Boundia",
+    "CEO Linkedn": null,
+    "Marketing Head name": "Saurav Kumar Gupta",
+    "Marketing Head Linkedn": null,
+    "Contact email": "rohit@decentro.tech",
+    "evidence_refs": [
+      "evidence_e7df2ccc",
+      "evidence_c4f79ef6",
+      "evidence_df945fcb",
+      "evidence_dcd135a0"
+    ],
+    "missing_fields": []
+  },
+  {
+    "LeadId": "lead_20521f87",
+    "Date": "2026-08-18",
+    "Category": "SAAS",
+    "Segment": null,
+    "Industry": "SAAS",
+    "Company Name": "Corefactors",
+    "Website": "corefactors.ai",
+    "Founded": "2013",
+    "Revenue": "$3M",
+    "City/Country": "India",
+    "Ceo/Founder Name": "Sharmila Sundaram",
+    "CEO Linkedn": null,
+    "Marketing Head name": "Kunal Kaushik",
+    "Marketing Head Linkedn": null,
+    "Contact email": "rohit@decentro.tech",
+    "evidence_refs": [
+      "evidence_4d0d4505",
+      "evidence_c6db43a0",
+      "evidence_4eea8637",
+      "evidence_17efbf97"
+    ],
+    "missing_fields": []
+  },
+  {
+    "LeadId": "lead_1fd98edf",
+    "Date": "2026-08-18",
+    "Category": "AI",
+    "Segment": null,
+    "Industry": "AI",
+    "Company Name": "Convin",
+    "Website": "convin.ai",
+    "Founded": "2020",
+    "Revenue": "$.",
+    "City/Country": "India",
+    "Ceo/Founder Name": "Ashish Santhalia",
+    "CEO Linkedn": null,
+    "Marketing Head name": "Pranita Kakade",
+    "Marketing Head Linkedn": null,
+    "Contact email": "rohit@decentro.tech",
+    "evidence_refs": [
+      "evidence_664cef34",
+      "evidence_edb0a4fb",
+      "evidence_24b35763",
+      "evidence_03a3c65f"
+    ],
+    "missing_fields": []
+  }
+]

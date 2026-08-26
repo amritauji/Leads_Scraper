@@ -1,0 +1,155 @@
+{% extends "_shell.html" %}
+{% set nav = 'users' %}
+{% block title %}Team & access — LeadForge{% endblock %}
+{% block header %}Team &amp; access control{% endblock %}
+{% block subheader %}Create logins, assign roles, and disable seats.{% endblock %}
+
+{% block extra_head %}
+<style>
+  .stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-bottom: 24px; }
+  @media (max-width: 800px) { .stats { grid-template-columns: repeat(2, 1fr); } }
+  .stat-card { padding: 20px; display: flex; flex-direction: column; gap: 6px; position: relative; overflow: hidden; }
+  .stat-card .label { color: var(--fg-3); font-size: 12px; text-transform: uppercase; letter-spacing: .06em; font-weight: 500; }
+  .stat-card .value { font-size: 28px; font-weight: 700; letter-spacing: -.02em; }
+  .stat-card .delta { color: var(--success); font-size: 12px; margin-top: auto; }
+  .stat-card .icon { position: absolute; right: 16px; top: 16px; width: 32px; height: 32px; border-radius: 10px; display: grid; place-items: center; background: rgba(139, 92, 246, .1); color: #c4b5fd; }
+  .stat-card.pink   .icon { background: rgba(236, 72, 153, .12); color: #f9a8d4; }
+  .stat-card.orange .icon { background: rgba(251, 146, 60, .12); color: #fdba74; }
+  .stat-card.cyan   .icon { background: rgba(34, 211, 238, .12);  color: #67e8f9; }
+
+  .table-card { padding: 0; overflow: hidden; }
+  .table-head { padding: 20px 24px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--line); }
+  .table-head h2 { margin: 0; font-size: 16px; font-weight: 600; }
+  .search { width: 260px; background: rgba(0,0,0,.35); border: 1px solid var(--line); border-radius: 999px; padding: 8px 14px 8px 36px; color: var(--fg); font-size: 13px;
+            background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 16 16' fill='none'><circle cx='7' cy='7' r='5' stroke='%237a7a95' stroke-width='1.5'/><path d='M11 11l3 3' stroke='%237a7a95' stroke-width='1.5' stroke-linecap='round'/></svg>");
+            background-repeat: no-repeat; background-position: 12px center; }
+  .search:focus { outline: none; border-color: rgba(236, 72, 153, .55); }
+
+  table { width: 100%; border-collapse: collapse; }
+  thead th { text-align: left; padding: 14px 24px; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .08em; color: var(--fg-3); background: rgba(255,255,255,.02); border-bottom: 1px solid var(--line); }
+  tbody td { padding: 16px 24px; border-bottom: 1px solid var(--line); font-size: 14px; vertical-align: middle; }
+  tbody tr:last-child td { border-bottom: 0; }
+  tbody tr { transition: background .1s; }
+  tbody tr:hover { background: rgba(255,255,255,.02); }
+  tbody tr.inactive td { opacity: .5; }
+
+  .user-cell { display: flex; align-items: center; }
+  .user-cell .avatar { margin-right: 12px; }
+  .user-cell .name { font-weight: 500; }
+  .user-cell .id   { color: var(--fg-3); font-size: 12px; font-family: 'JetBrains Mono', monospace; }
+  .actions-cell { display: flex; gap: 8px; justify-content: flex-end; }
+
+  .add-card { margin-top: 24px; }
+  .add-form { display: grid; grid-template-columns: 2fr 2fr 1.5fr auto; gap: 12px; align-items: end; }
+  @media (max-width: 800px) { .add-form { grid-template-columns: 1fr 1fr; } }
+  .add-form .btn { height: 44px; }
+</style>
+{% endblock %}
+
+{% block content %}
+{% set total       = users | length %}
+{% set admin_count = users | selectattr('role', 'equalto', 'admin') | list | length %}
+{% set bd_count    = users | selectattr('role', 'equalto', 'bd')    | list | length %}
+{% set active_ct   = users | selectattr('is_active', 'equalto', 1)  | list | length %}
+
+<section class="stats">
+  <div class="card stat-card">
+    <span class="label">Total members</span><span class="value">{{ total }}</span><span class="delta">all seats</span>
+    <div class="icon"><svg width="16" height="16" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="6" r="3" stroke="currentColor" stroke-width="1.5"/><path d="M2 14c0-3 2.5-5 6-5s6 2 6 5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg></div>
+  </div>
+  <div class="card stat-card pink">
+    <span class="label">Administrators</span><span class="value">{{ admin_count }}</span><span class="delta muted-2">full access</span>
+    <div class="icon"><svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M8 1l6 3v4c0 4-3 6-6 7-3-1-6-3-6-7V4l6-3z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/></svg></div>
+  </div>
+  <div class="card stat-card orange">
+    <span class="label">BD Managers</span><span class="value">{{ bd_count }}</span><span class="delta muted-2">running research</span>
+    <div class="icon"><svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M2 12l4-4 3 3 5-6" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/><path d="M10 5h4v4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+  </div>
+  <div class="card stat-card cyan">
+    <span class="label">Active</span><span class="value">{{ active_ct }}</span><span class="delta">of {{ total }}</span>
+    <div class="icon"><svg width="16" height="16" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="6" stroke="currentColor" stroke-width="1.5"/><path d="M5 8l2 2 4-4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+  </div>
+</section>
+
+<section class="card table-card">
+  <div class="table-head">
+    <h2>Members</h2>
+    <input class="search" id="search" type="search" placeholder="Search by username…">
+  </div>
+  <div style="overflow-x:auto;">
+    <table>
+      <thead>
+        <tr><th>User</th><th>Role</th><th>Status</th><th>Last login</th><th style="text-align:right;">Actions</th></tr>
+      </thead>
+      <tbody id="usersBody">
+        {% for u in users %}
+        <tr class="{{ '' if u.is_active else 'inactive' }}" data-username="{{ u.username|lower }}">
+          <td><div class="user-cell"><div class="avatar">{{ u.username[:1]|upper }}</div><div><div class="name">{{ u.username }}</div><div class="id">id: {{ u.id }}</div></div></div></td>
+          <td><span class="role-pill {{ u.role }}">{{ role_labels.get(u.role, u.role) }}</span></td>
+          <td>{% if u.is_active %}<span class="status-pill active">● Active</span>{% else %}<span class="status-pill inactive">Disabled</span>{% endif %}</td>
+          <td class="mono">{{ u.last_login_at[:16] if u.last_login_at else '—' }}</td>
+          <td><div class="actions-cell">
+            {% if u.is_active %}<button class="btn btn-danger btn-sm" onclick="toggleActive({{ u.id }}, false)">Disable</button>
+            {% else %}<button class="btn btn-ghost btn-sm"  onclick="toggleActive({{ u.id }}, true)">Enable</button>{% endif %}
+          </div></td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<section class="card add-card">
+  <div class="between" style="margin-bottom: 16px;">
+    <div>
+      <h2 style="margin: 0; font-size: 16px;">Invite a teammate</h2>
+      <p class="muted" style="margin: 4px 0 0; font-size: 13px;">Create a login for a new admin, BD manager, or user.</p>
+    </div>
+  </div>
+  <form class="add-form" id="addForm">
+    <div><label class="field-label">Username</label><input class="input" name="username" placeholder="e.g. sales_2" required></div>
+    <div><label class="field-label">Temporary password</label><input class="input" name="password" type="text" placeholder="min 6 characters" required></div>
+    <div><label class="field-label">Role</label>
+      <select class="select" name="role">
+        {% for r in roles %}<option value="{{ r }}">{{ role_labels.get(r, r) }}</option>{% endfor %}
+      </select>
+    </div>
+    <button class="btn btn-primary" type="submit">Add member
+      <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M8 3v10M3 8h10" stroke="white" stroke-width="2" stroke-linecap="round"/></svg>
+    </button>
+  </form>
+  <div class="msg" id="msg"></div>
+</section>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  const msg = document.getElementById("msg");
+  const setMsg = (text, kind = "error") => { msg.textContent = text || ""; msg.className = "msg " + kind; };
+
+  document.getElementById("addForm").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    setMsg("");
+    const f = e.target;
+    const res = await fetch("/api/auth/users", { method: "POST", headers: {"Content-Type":"application/json"},
+      body: JSON.stringify({ username: f.username.value.trim(), password: f.password.value, role: f.role.value }) });
+    const data = await res.json();
+    if (!res.ok) return setMsg(data.error);
+    setMsg("Member added — reloading…", "success");
+    setTimeout(() => location.reload(), 400);
+  });
+
+  async function toggleActive(id, makeActive) {
+    const res = await fetch(`/api/auth/users/${id}/active`, { method: "POST", headers: {"Content-Type":"application/json"},
+      body: JSON.stringify({ is_active: makeActive }) });
+    const data = await res.json();
+    if (!res.ok) return setMsg(data.error);
+    location.reload();
+  }
+
+  document.getElementById("search").addEventListener("input", (e) => {
+    const q = e.target.value.trim().toLowerCase();
+    document.querySelectorAll("#usersBody tr").forEach(tr => { tr.style.display = tr.dataset.username.includes(q) ? "" : "none"; });
+  });
+</script>
+{% endblock %}

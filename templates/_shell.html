@@ -1,0 +1,143 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}LeadForge{% endblock %}</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/theme.css') }}">
+  <style>
+    .app {
+      display: grid;
+      grid-template-columns: 240px 1fr;
+      min-height: 100vh;
+      position: relative;
+      z-index: 1;
+    }
+    @media (max-width: 900px) { .app { grid-template-columns: 1fr; } .sidebar { display: none; } }
+
+    .sidebar {
+      background: rgba(0,0,0,.35);
+      border-right: 1px solid var(--line);
+      padding: 22px 16px;
+      display: flex; flex-direction: column; gap: 4px;
+      position: sticky; top: 0; height: 100vh;
+    }
+    .sidebar .brand { margin: 4px 12px 24px; }
+    .sidebar a.nav-item {
+      display: flex; align-items: center; gap: 12px;
+      padding: 10px 12px; border-radius: 10px;
+      color: var(--fg-2); font-size: 14px; font-weight: 500;
+      transition: background .15s, color .15s;
+    }
+    .sidebar a.nav-item:hover { background: rgba(255,255,255,.04); color: var(--fg); }
+    .sidebar a.nav-item.active { background: rgba(139, 92, 246, .12); color: #fff; border: 1px solid rgba(139, 92, 246, .25); }
+    .sidebar .nav-section { color: var(--fg-3); font-size: 11px; text-transform: uppercase; letter-spacing: .1em; padding: 20px 12px 6px; }
+    .sidebar .who {
+      margin-top: auto;
+      display: flex; gap: 10px; align-items: center;
+      padding: 12px; border-radius: 12px; border: 1px solid var(--line);
+      background: rgba(255,255,255,.02);
+    }
+    .sidebar .who .avatar { width: 32px; height: 32px; margin: 0; }
+    .sidebar .who .name { font-size: 13px; font-weight: 500; }
+
+    .topbar {
+      display: flex; justify-content: space-between; align-items: center;
+      padding: 20px 40px; border-bottom: 1px solid var(--line);
+    }
+    .page-title { font-size: 22px; font-weight: 700; letter-spacing: -.01em; margin: 0; }
+    .page-sub   { color: var(--fg-2); font-size: 13px; margin: 4px 0 0; }
+
+    .content { padding: 32px 40px; }
+    @media (max-width: 700px) { .topbar, .content { padding-left: 20px; padding-right: 20px; } }
+
+    .nav-icon { width: 18px; height: 18px; opacity: .9; }
+  </style>
+  {% block extra_head %}{% endblock %}
+</head>
+<body>
+  <div class="stage">
+    <div class="app">
+      <aside class="sidebar">
+        <div class="brand"><div class="brand-mark"></div> LeadForge</div>
+
+        <div class="nav-section">Workspace</div>
+        <a class="nav-item {% if nav == 'home' %}active{% endif %}" href="/{{ user.role if user.role != 'admin' else 'admin' }}">
+          <svg class="nav-icon" viewBox="0 0 20 20" fill="none"><path d="M3 10l7-7 7 7v7a1 1 0 01-1 1h-4v-5H8v5H4a1 1 0 01-1-1v-7z" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/></svg>
+          Overview
+        </a>
+
+        {% if 'research.run' in user.permissions %}
+        <a class="nav-item {% if nav == 'research' %}active{% endif %}" href="/bd">
+          <svg class="nav-icon" viewBox="0 0 20 20" fill="none"><circle cx="9" cy="9" r="6" stroke="currentColor" stroke-width="1.6"/><path d="M13.5 13.5L17 17" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
+          Research
+        </a>
+        {% endif %}
+
+        {% if 'leads.view' in user.permissions %}
+        <a class="nav-item {% if nav == 'leads' %}active{% endif %}" href="/user">
+          <svg class="nav-icon" viewBox="0 0 20 20" fill="none"><rect x="3" y="4" width="14" height="12" rx="2" stroke="currentColor" stroke-width="1.6"/><path d="M3 8h14M8 4v12" stroke="currentColor" stroke-width="1.6"/></svg>
+          Leads
+        </a>
+        <a class="nav-item {% if nav == 'history' %}active{% endif %}" href="/history">
+          <svg class="nav-icon" viewBox="0 0 20 20" fill="none"><circle cx="10" cy="10" r="7" stroke="currentColor" stroke-width="1.6"/><path d="M10 6v4l3 2" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
+          History
+        </a>
+        {% endif %}
+
+        {% if 'users.manage' in user.permissions %}
+        <div class="nav-section">Admin</div>
+        <a class="nav-item {% if nav == 'admin_home' %}active{% endif %}" href="/admin">
+          <svg class="nav-icon" viewBox="0 0 20 20" fill="none"><path d="M10 2l7 3v5c0 4-3 7-7 8-4-1-7-4-7-8V5l7-3z" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/></svg>
+          Admin console
+        </a>
+        <a class="nav-item {% if nav == 'users' %}active{% endif %}" href="/admin/users">
+          <svg class="nav-icon" viewBox="0 0 20 20" fill="none"><circle cx="10" cy="7" r="3" stroke="currentColor" stroke-width="1.6"/><path d="M3 17c0-3.5 3-6 7-6s7 2.5 7 6" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
+          Team &amp; access
+        </a>
+        {% endif %}
+
+        <div class="who">
+          <div class="avatar">{{ user.username[:1]|upper }}</div>
+          <div style="flex:1; min-width:0;">
+            <div class="name" style="overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">{{ user.username }}</div>
+            <div class="muted-2" style="font-size:11px;">{{ user.role_label }}</div>
+          </div>
+          <a href="#" id="logout" title="Log out" style="color: var(--fg-3);">
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M6 3H4a1 1 0 00-1 1v8a1 1 0 001 1h2M10 11l3-3-3-3M13 8H6" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          </a>
+        </div>
+      </aside>
+
+      <main>
+        <header class="topbar">
+          <div>
+            <h1 class="page-title">{% block header %}Overview{% endblock %}</h1>
+            <p class="page-sub">{% block subheader %}{% endblock %}</p>
+          </div>
+          <div class="hstack">
+            <span class="badge"><span class="badge-dot"></span> {{ user.role_label }}</span>
+            {% block topbar_actions %}{% endblock %}
+          </div>
+        </header>
+
+        <div class="content">
+          {% block content %}{% endblock %}
+        </div>
+      </main>
+    </div>
+  </div>
+
+  <script>
+    document.getElementById("logout").addEventListener("click", async (e) => {
+      e.preventDefault();
+      await fetch("/api/auth/logout", { method: "POST" });
+      window.location.href = "/login";
+    });
+  </script>
+  {% block scripts %}{% endblock %}
+</body>
+</html>

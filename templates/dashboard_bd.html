@@ -1,0 +1,378 @@
+{% extends "_shell.html" %}
+{% set nav = 'research' %}
+{% block title %}Research — LeadForge{% endblock %}
+{% block header %}Research console{% endblock %}
+{% block subheader %}Ask in plain English. Our agents interpret, plan, discover, enrich, and score.{% endblock %}
+
+{% block extra_head %}
+<style>
+  .composer .card { padding: 28px; }
+  .composer textarea {
+    width: 100%; min-height: 96px; resize: vertical;
+    padding: 14px 16px; border-radius: 12px;
+    background: rgba(0,0,0,.35);
+    border: 1px solid var(--line);
+    color: var(--fg); font-family: inherit; font-size: 15px; line-height: 1.5;
+  }
+  .composer textarea:focus {
+    outline: none; border-color: rgba(236, 72, 153, .55);
+    box-shadow: 0 0 0 4px rgba(236, 72, 153, .12);
+  }
+  .composer .row { display: flex; justify-content: space-between; align-items: center; margin-top: 14px; gap: 12px; flex-wrap: wrap; }
+  .chips { display: flex; gap: 8px; flex-wrap: wrap; }
+  .chip {
+    padding: 6px 12px; border-radius: 999px; font-size: 12px;
+    background: rgba(255,255,255,.04); border: 1px solid var(--line);
+    color: var(--fg-2); cursor: pointer; transition: border-color .1s, color .1s;
+  }
+  .chip:hover { border-color: rgba(236, 72, 153, .5); color: var(--fg); }
+
+  .count-input {
+    width: 68px; text-align: center;
+    padding: 8px 6px; border-radius: 10px;
+    background: rgba(0,0,0,.35); border: 1px solid var(--line);
+    color: var(--fg); font-family: inherit; font-size: 14px;
+  }
+  .count-input:focus { outline: none; border-color: rgba(236, 72, 153, .55); }
+
+  /* Pipeline: 8 steps, matches the developer's node schema */
+  .pipeline { display: grid; grid-template-columns: repeat(8, 1fr); gap: 8px; margin-top: 22px; }
+  @media (max-width: 900px) { .pipeline { grid-template-columns: repeat(4, 1fr); } }
+  .step {
+    padding: 12px 8px; border-radius: 10px;
+    border: 1px solid var(--line); background: rgba(255,255,255,.02);
+    text-align: center; font-size: 11px; color: var(--fg-3);
+    transition: all .2s;
+    position: relative;
+  }
+  .step.done { border-color: rgba(52, 211, 153, .3); color: #6ee7b7; background: rgba(52, 211, 153, .08); }
+  .step.active { border-color: rgba(236, 72, 153, .5); color: #f9a8d4; background: rgba(236, 72, 153, .1); }
+  .step.active::after {
+    content: ""; position: absolute; inset: -1px; border-radius: 10px;
+    border: 1px solid rgba(236, 72, 153, .5);
+    animation: pulse 1.4s ease-in-out infinite;
+  }
+  @keyframes pulse { 0%,100% { opacity: .3; } 50% { opacity: 1; } }
+  .step .n { display: block; font-family: 'JetBrains Mono', monospace; font-size: 10px; opacity: .6; margin-bottom: 4px; }
+  .step .lbl { display: block; font-size: 11px; font-weight: 500; }
+  .step .tool { display: block; font-size: 9px; opacity: .65; margin-top: 2px; text-transform: uppercase; letter-spacing: .06em; }
+
+  .prov { display: flex; gap: 6px; }
+  .prov span {
+    padding: 4px 10px; border-radius: 999px;
+    font-size: 11px; letter-spacing: .02em; font-weight: 500;
+    border: 1px solid var(--line); background: rgba(255,255,255,.02); color: var(--fg-2);
+  }
+
+  /* Results */
+  .results { margin-top: 24px; display: none; }
+  .results.visible { display: block; }
+
+  .result-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; }
+  .result-head h2 { margin: 0; font-size: 18px; font-weight: 700; }
+  .result-head .meta { color: var(--fg-3); font-size: 12px; }
+
+  .result-actions { display: flex; gap: 8px; }
+  .lead-card { padding: 0; overflow: hidden; }
+  table { width: 100%; border-collapse: collapse; }
+  thead th {
+    text-align: left; padding: 12px 18px;
+    font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .08em;
+    color: var(--fg-3); background: rgba(255,255,255,.02);
+    border-bottom: 1px solid var(--line);
+  }
+  tbody td { padding: 14px 18px; border-bottom: 1px solid var(--line); font-size: 13px; vertical-align: top; }
+  tbody tr:last-child td { border-bottom: 0; }
+  tbody tr:hover { background: rgba(255,255,255,.02); }
+  .name { font-weight: 500; color: var(--fg); }
+  .sub  { color: var(--fg-3); font-size: 12px; }
+  .link { color: #67e8f9; }
+  .link:hover { text-decoration: underline; }
+
+  .log-panel {
+    margin-top: 16px; padding: 14px 18px; border-radius: 12px;
+    background: rgba(0,0,0,.35); border: 1px solid var(--line);
+    max-height: 200px; overflow-y: auto;
+    font-family: 'JetBrains Mono', monospace; font-size: 11px; color: var(--fg-2);
+    line-height: 1.6;
+  }
+  .log-panel .ev-time { color: var(--fg-3); }
+  .log-panel .ev-name { color: #c4b5fd; }
+  .log-panel .ev-err  { color: var(--danger); }
+</style>
+{% endblock %}
+
+{% block content %}
+<section class="composer">
+  <div class="card">
+    <label class="field-label" for="query" style="margin-bottom: 10px;">Research query</label>
+    <textarea id="query" placeholder="e.g. find top B2B electronics manufacturers in India"></textarea>
+    <div class="row">
+      <div class="chips">
+        <button class="chip" type="button" onclick="fillQ('find top B2B electronics manufacturers in India')">B2B electronics · India</button>
+        <button class="chip" type="button" onclick="fillQ('Series-A fintech CTOs in Singapore')">Series-A CTOs · SG</button>
+        <button class="chip" type="button" onclick="fillQ('DTC brands doing $10M+ ARR with a Shopify store')">DTC · $10M+ ARR</button>
+      </div>
+      <div class="hstack">
+        <label class="muted-2" style="font-size:12px;">Max companies</label>
+        <input class="count-input" id="maxCompanies" type="number" min="1" max="25" value="5">
+        <button class="btn btn-primary" id="runBtn">
+          Start research
+          <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M3 8h10M9 4l4 4-4 4" stroke="white" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </button>
+      </div>
+    </div>
+
+    <div class="pipeline" id="pipeline">
+      <div class="step" data-node="interpret_request">
+        <span class="n">01</span><span class="lbl">Interpret</span><span class="tool">Agent</span>
+      </div>
+      <div class="step" data-node="create_research_plan">
+        <span class="n">02</span><span class="lbl">Plan</span><span class="tool">Agent</span>
+      </div>
+      <div class="step" data-node="discover_companies">
+        <span class="n">03</span><span class="lbl">Discover</span><span class="tool">Exa</span>
+      </div>
+      <div class="step" data-node="research_companies">
+        <span class="n">04</span><span class="lbl">Crawl</span><span class="tool">Firecrawl</span>
+      </div>
+      <div class="step" data-node="find_people">
+        <span class="n">05</span><span class="lbl">People</span><span class="tool">Exa + Tavily</span>
+      </div>
+      <div class="step" data-node="enrich_contacts">
+        <span class="n">06</span><span class="lbl">Contacts</span><span class="tool">Hunter</span>
+      </div>
+      <div class="step" data-node="evaluate_evidence">
+        <span class="n">07</span><span class="lbl">Evaluate</span><span class="tool">Agent</span>
+      </div>
+      <div class="step" data-node="build_standard_lead">
+        <span class="n">08</span><span class="lbl">Assemble</span><span class="tool">Agent</span>
+      </div>
+    </div>
+
+    <div class="row" style="margin-top:14px;">
+      <div class="prov">
+        <span>● Agent</span><span>● Exa</span><span>● Tavily</span><span>● Firecrawl</span><span>● Hunter</span>
+      </div>
+      <span class="mono" id="jobStatus">idle</span>
+    </div>
+  </div>
+</section>
+
+<section class="results" id="results">
+  <div class="result-head">
+    <div>
+      <h2><span class="gradient-text">Leads</span> discovered</h2>
+      <div class="meta" id="resultMeta">—</div>
+    </div>
+    <div class="result-actions">
+      <a class="btn btn-ghost btn-sm" id="downloadBtn" href="/output/leads.json" download>Download JSON</a>
+      <a class="btn btn-ghost btn-sm" id="evidenceBtn" href="/output/evidence.json" download>Download evidence</a>
+    </div>
+  </div>
+
+  <div class="card lead-card">
+    <div style="overflow-x:auto;">
+      <table id="resultsTable">
+        <thead>
+          <tr>
+            <th>Company</th>
+            <th>Industry</th>
+            <th>Location</th>
+            <th>People</th>
+            <th>Contact</th>
+            <th>Source</th>
+          </tr>
+        </thead>
+        <tbody id="resultsBody"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="log-panel" id="logPanel"></div>
+</section>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  const $ = (id) => document.getElementById(id);
+  const q         = $("query");
+  const maxIn     = $("maxCompanies");
+  const runBtn    = $("runBtn");
+  const status    = $("jobStatus");
+  const steps     = [...document.querySelectorAll("#pipeline .step")];
+  const results   = $("results");
+  const meta      = $("resultMeta");
+  const tbody     = $("resultsBody");
+  const logPanel  = $("logPanel");
+
+  function fillQ(t) { q.value = t; q.focus(); }
+  window.fillQ = fillQ;
+
+  function resetPipeline() {
+    steps.forEach(s => s.classList.remove("done", "active"));
+    results.classList.remove("visible");
+    tbody.innerHTML = "";
+    logPanel.innerHTML = "";
+  }
+
+  function logEvent(name, extra = "") {
+    const now = new Date().toISOString().slice(11, 19);
+    const cls = name === "error" ? "ev-err" : "ev-name";
+    logPanel.insertAdjacentHTML(
+      "beforeend",
+      `<div><span class="ev-time">${now}</span> · <span class="${cls}">${name}</span> ${extra}</div>`
+    );
+    logPanel.scrollTop = logPanel.scrollHeight;
+  }
+
+  function escapeHtml(s) {
+    return String(s ?? "").replace(/[&<>"']/g, c => ({
+      "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"
+    }[c]));
+  }
+
+  // Render a row from a lead dict. The developer's StandardLead.to_dict() emits
+  // human-labelled keys ("Company Name", "City/Country", "Contact email", …);
+  // we check those first, then fall back to snake_case for any other producer.
+  function pick(lead, ...keys) {
+    for (const k of keys) {
+      const v = lead[k];
+      if (v !== undefined && v !== null && v !== "") return v;
+    }
+    return "";
+  }
+  function renderLead(lead) {
+    const company  = pick(lead, "Company Name", "company_name", "name", "company") || "—";
+    const industry = pick(lead, "Industry", "industry", "sector", "Category", "Segment") || "—";
+    const website  = pick(lead, "Website", "website", "url");
+    const founded  = pick(lead, "Founded", "founded");
+    const revenue  = pick(lead, "Revenue", "revenue");
+    const location = pick(lead, "City/Country", "city_country") ||
+                     [pick(lead, "city"), pick(lead, "country")].filter(Boolean).join(", ") ||
+                     "—";
+    const ceo      = pick(lead, "Ceo/Founder Name", "ceo_founder_name", "ceo", "founder");
+    const ceoLi    = pick(lead, "CEO Linkedn", "CEO LinkedIn", "ceo_linkedin");
+    const mkt      = pick(lead, "Marketing Head name", "Marketing Head Name", "marketing_head_name", "marketing_head");
+    const mktLi    = pick(lead, "Marketing Head Linkedn", "Marketing Head LinkedIn", "marketing_head_linkedin");
+    const email    = pick(lead, "Contact email", "Contact Email", "contact_email", "email");
+    const source   = email ? "Hunter" : "Agent";
+
+    const people = [
+      ceo ? `<div><span class="name">${escapeHtml(ceo)}</span><div class="sub">CEO / Founder${ceoLi ? ` · <a class="link" href="${escapeHtml(ceoLi)}" target="_blank" rel="noopener">in</a>` : ""}</div></div>` : "",
+      mkt ? `<div style="margin-top:6px;"><span class="name">${escapeHtml(mkt)}</span><div class="sub">Marketing Head${mktLi ? ` · <a class="link" href="${escapeHtml(mktLi)}" target="_blank" rel="noopener">in</a>` : ""}</div></div>` : "",
+    ].filter(Boolean).join("") || "<span class='muted-2'>—</span>";
+
+    return `
+      <tr>
+        <td>
+          <div class="name">${escapeHtml(company)}</div>
+          <div class="sub">${website ? `<a class="link" href="${escapeHtml(website)}" target="_blank" rel="noopener">${escapeHtml(website)}</a>` : "—"}</div>
+          ${founded || revenue ? `<div class="sub">${escapeHtml(founded)}${founded && revenue ? " · " : ""}${escapeHtml(revenue)}</div>` : ""}
+        </td>
+        <td>${escapeHtml(industry)}</td>
+        <td>${escapeHtml(location)}</td>
+        <td>${people}</td>
+        <td>${email ? `<span class="mono">${escapeHtml(email)}</span>` : "<span class='muted-2'>—</span>"}</td>
+        <td><span class="role-pill user" style="text-transform:none;">${escapeHtml(source)}</span></td>
+      </tr>
+    `;
+  }
+
+  runBtn.addEventListener("click", async () => {
+    const query = q.value.trim();
+    if (!query) { q.focus(); return; }
+    const max_companies = Math.max(1, Math.min(25, parseInt(maxIn.value || "5", 10) || 5));
+
+    resetPipeline();
+    runBtn.disabled = true;
+    status.textContent = "starting…";
+    logEvent("submit", `— "${escapeHtml(query)}" · max ${max_companies}`);
+
+    let jobRes, jobData;
+    try {
+      jobRes = await fetch("/api/research", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ query, max_companies }),
+      });
+      jobData = await jobRes.json();
+    } catch (e) {
+      status.textContent = "network error";
+      runBtn.disabled = false;
+      logEvent("error", e.message);
+      return;
+    }
+    if (!jobRes.ok) {
+      status.textContent = "error";
+      logEvent("error", jobData.error || jobRes.status);
+      runBtn.disabled = false;
+      return;
+    }
+    status.textContent = jobData.job_id;
+
+    const es = new EventSource("/api/stream/" + jobData.job_id);
+
+    es.onmessage = (ev) => {
+      let m; try { m = JSON.parse(ev.data); } catch { return; }
+      const type = m.type;
+
+      if (type === "start")       { logEvent("start", `max ${m.max_companies}`); return; }
+      if (type === "heartbeat")   { return; }
+      if (type === "graph_start") { logEvent("graph_start"); return; }
+
+      if (type === "node_start") {
+        // Light up the matching step by node name (matches the pipeline data-node attribute).
+        steps.forEach(s => {
+          if (s.dataset.node === m.node) {
+            steps.forEach(x => x.classList.remove("active"));
+            s.classList.add("active");
+          }
+          if (s.dataset.node === m.node) return;
+        });
+        // Mark all prior steps as done using step_index.
+        if (typeof m.step_index === "number") {
+          steps.forEach((s, i) => {
+            if (i < m.step_index) { s.classList.add("done"); s.classList.remove("active"); }
+          });
+        }
+        logEvent("node_start", `${m.display || m.node} · ${m.message || ""}`);
+        return;
+      }
+
+      if (type === "complete") {
+        steps.forEach(s => { s.classList.add("done"); s.classList.remove("active"); });
+        const leads = m.leads || [];
+        meta.textContent = `${leads.length} lead${leads.length === 1 ? "" : "s"} · ${m.evidence_count || 0} evidence items`;
+        tbody.innerHTML = leads.length
+          ? leads.map(renderLead).join("")
+          : `<tr><td colspan="6" class="muted-2" style="text-align:center; padding:24px;">No leads returned.</td></tr>`;
+        results.classList.add("visible");
+        logEvent("complete", `${leads.length} leads`);
+        return;
+      }
+
+      if (type === "error") {
+        status.textContent = "error";
+        logEvent("error", m.message || "unknown");
+        return;
+      }
+
+      if (type === "done") {
+        status.textContent = "done";
+        runBtn.disabled = false;
+        es.close();
+        return;
+      }
+    };
+
+    es.onerror = () => {
+      es.close();
+      if (status.textContent !== "done" && status.textContent !== "error") {
+        status.textContent = "stream closed";
+      }
+      runBtn.disabled = false;
+    };
+  });
+</script>
+{% endblock %}

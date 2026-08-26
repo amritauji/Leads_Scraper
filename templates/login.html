@@ -1,0 +1,193 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Sign in — Lead Scraper</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/theme.css') }}">
+  <style>
+    .layout {
+      display: grid;
+      grid-template-columns: 1.1fr 1fr;
+      gap: 60px;
+      align-items: center;
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 40px 40px 80px;
+    }
+    @media (max-width: 900px) {
+      .layout { grid-template-columns: 1fr; gap: 40px; padding-top: 20px; }
+      .hero { text-align: center; }
+    }
+
+    .hero .badge { margin-bottom: 24px; }
+    .hero p { color: var(--fg-2); font-size: 17px; max-width: 460px; margin: 0 0 32px; }
+    @media (max-width: 900px) { .hero p { margin-inline: auto; } }
+
+    .hero-stats {
+      display: flex;
+      gap: 32px;
+      margin-top: 40px;
+      padding-top: 32px;
+      border-top: 1px solid var(--line);
+    }
+    @media (max-width: 900px) { .hero-stats { justify-content: center; } }
+    .stat .num {
+      font-size: 26px; font-weight: 700; letter-spacing: -.02em;
+    }
+    .stat .label { color: var(--fg-3); font-size: 12px; letter-spacing: .04em; text-transform: uppercase; margin-top: 2px; }
+
+    .sign-card { padding: 40px; }
+    .sign-card h2 {
+      font-size: 24px;
+      margin: 0 0 6px;
+      letter-spacing: -.01em;
+    }
+    .sign-card .sub { color: var(--fg-2); font-size: 14px; margin: 0 0 28px; }
+
+    .role-hints {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      margin-top: 24px;
+      padding-top: 24px;
+      border-top: 1px solid var(--line);
+    }
+    .role-hints .role-pill { cursor: default; }
+
+    .footer-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-top: 20px;
+      font-size: 13px;
+      color: var(--fg-3);
+    }
+    .footer-row a { color: var(--fg-2); }
+    .footer-row a:hover { color: var(--fg); }
+
+    .submit { width: 100%; margin-top: 8px; padding: 14px; font-size: 15px; }
+
+    .divider {
+      display: flex; align-items: center; gap: 12px;
+      color: var(--fg-3); font-size: 12px; text-transform: uppercase; letter-spacing: .1em;
+      margin: 24px 0;
+    }
+    .divider::before, .divider::after { content: ""; flex: 1; height: 1px; background: var(--line); }
+  </style>
+</head>
+<body>
+  <div class="stage">
+    <nav class="nav">
+      <div class="brand">
+        <div class="brand-mark"></div>
+        LeadForge
+      </div>
+      <div class="nav-actions">
+        <a class="btn btn-ghost btn-sm" href="/">Home</a>
+      </div>
+    </nav>
+
+    <main class="layout">
+      <section class="hero">
+        <span class="badge"><span class="badge-dot"></span> New · Lead System Portal v1.0</span>
+        <h1 class="display">
+          Prospect.<br>
+          Enrich.<br>
+          <span class="gradient-text">Convert.</span>
+        </h1>
+        <p>
+          Autonomous B2B lead research powered by GPT, Exa, Tavily, Firecrawl
+          and Hunter — from a single natural-language query to a scored,
+          enriched contact record.
+        </p>
+        <div class="hero-stats">
+          <div class="stat"><div class="num">12.6K+</div><div class="label">Leads Enriched</div></div>
+          <div class="stat"><div class="num">94%</div><div class="label">Contact Accuracy</div></div>
+          <div class="stat"><div class="num">3m 24s</div><div class="label">Avg. Research Time</div></div>
+        </div>
+      </section>
+
+      <section class="glass sign-card">
+        <h2>Sign in to your workspace</h2>
+        <p class="sub">Use the credentials issued by your workspace admin.</p>
+
+        <form id="loginForm" novalidate>
+          <div class="field">
+            <label class="field-label" for="role">Sign in as</label>
+            <select class="select" id="role" name="role" required>
+              <option value="admin">Admin — full access</option>
+              <option value="bd" selected>BD Manager — run research</option>
+              <option value="user">User — view leads</option>
+            </select>
+          </div>
+          <div class="field">
+            <label class="field-label" for="username">Username</label>
+            <input class="input" id="username" name="username" autocomplete="username" placeholder="e.g. sales1" required>
+          </div>
+          <div class="field">
+            <label class="field-label" for="password">Password</label>
+            <input class="input" id="password" name="password" type="password" autocomplete="current-password" placeholder="••••••••" required>
+          </div>
+          <button class="btn btn-primary submit" type="submit">
+            Sign in
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M3 8h10M9 4l4 4-4 4" stroke="white" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          </button>
+          <div class="msg error" id="msg"></div>
+        </form>
+
+        <div class="footer-row">
+          <span class="mono">workspace: default</span>
+          <a href="#" title="Contact your admin">Forgot password?</a>
+        </div>
+
+        <div class="role-hints">
+          <span class="muted-2" style="font-size:12px; align-self:center; margin-right:4px;">Roles:</span>
+          <span class="role-pill admin">Admin</span>
+          <span class="role-pill bd">BD Manager</span>
+          <span class="role-pill user">User</span>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <script>
+    const form = document.getElementById("loginForm");
+    const msg = document.getElementById("msg");
+    const submitBtn = form.querySelector("button[type=submit]");
+
+    form.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      msg.textContent = ""; msg.className = "msg error";
+      submitBtn.disabled = true;
+      const original = submitBtn.innerHTML;
+      submitBtn.innerHTML = "Signing in…";
+
+      try {
+        const res = await fetch("/api/auth/login", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            username: form.username.value.trim(),
+            password: form.password.value,
+            role: form.role.value,
+          }),
+        });
+        const data = await res.json();
+        if (!res.ok) { msg.textContent = data.error || "Login failed"; return; }
+        // Route to the role-specific dashboard.
+        const home = { admin: "/admin", bd: "/bd", user: "/user" }[data.user.role] || "/";
+        window.location.href = home;
+      } catch (err) {
+        msg.textContent = "Network error — try again.";
+      } finally {
+        submitBtn.disabled = false;
+        submitBtn.innerHTML = original;
+      }
+    });
+  </script>
+</body>
+</html>

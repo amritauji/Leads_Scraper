@@ -29,7 +29,8 @@ HUNTER_API_KEY = get("HUNTER_API_KEY")
 DATABASE_URL = get("DATABASE_URL")
 
 # --- Auth -------------------------------------------------------------------
-SUPABASE_JWT_SECRET = get("SUPABASE_JWT_SECRET")
+SUPABASE_URL = get("SUPABASE_URL")  # Required: e.g. https://xxx.supabase.co
+SUPABASE_JWT_SECRET = get("SUPABASE_JWT_SECRET")  # Optional: legacy HS256 fallback only
 
 # --- Phase 3: Pipeline Stages -----------------------------------------------
 PIPELINE_STAGES = [

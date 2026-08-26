@@ -1,0 +1,216 @@
+{% extends "_shell.html" %}
+{% set nav = 'leads' %}
+{% block title %}Leads — LeadForge{% endblock %}
+{% block header %}Leads library{% endblock %}
+{% block subheader %}Read-only access to enriched leads from all completed research jobs.{% endblock %}
+
+{% block extra_head %}
+<style>
+  .toolbar {
+    display: flex; justify-content: space-between; align-items: center;
+    margin-bottom: 20px; gap: 12px; flex-wrap: wrap;
+  }
+  .toolbar .filters { display: flex; gap: 8px; flex-wrap: wrap; }
+  .toolbar .filter {
+    padding: 8px 14px; border-radius: 999px; font-size: 13px;
+    background: rgba(255,255,255,.04); border: 1px solid var(--line);
+    color: var(--fg-2); cursor: pointer;
+  }
+  .toolbar .filter.active { background: rgba(139, 92, 246, .15); border-color: rgba(139, 92, 246, .35); color: #fff; }
+
+  .search {
+    width: 260px;
+    background: rgba(0,0,0,.35); border: 1px solid var(--line);
+    border-radius: 999px; padding: 8px 14px 8px 36px;
+    color: var(--fg); font-size: 13px;
+    background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 16 16' fill='none'><circle cx='7' cy='7' r='5' stroke='%237a7a95' stroke-width='1.5'/><path d='M11 11l3 3' stroke='%237a7a95' stroke-width='1.5' stroke-linecap='round'/></svg>");
+    background-repeat: no-repeat; background-position: 12px center;
+  }
+  .search:focus { outline: none; border-color: rgba(236, 72, 153, .55); }
+
+  .lead-card { padding: 0; overflow: hidden; }
+  table { width: 100%; border-collapse: collapse; }
+  thead th {
+    text-align: left; padding: 14px 20px;
+    font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .08em;
+    color: var(--fg-3); background: rgba(255,255,255,.02);
+    border-bottom: 1px solid var(--line);
+  }
+  tbody td { padding: 16px 20px; border-bottom: 1px solid var(--line); font-size: 14px; vertical-align: top; }
+  tbody tr:hover { background: rgba(255,255,255,.02); }
+  .name { font-weight: 500; }
+  .sub  { color: var(--fg-3); font-size: 12px; margin-top: 2px; }
+  .link { color: #67e8f9; }
+  .link:hover { text-decoration: underline; }
+
+  .empty {
+    padding: 60px 20px; text-align: center; color: var(--fg-3);
+  }
+  .empty h3 { color: var(--fg); font-weight: 600; margin: 0 0 6px; font-size: 15px; }
+</style>
+{% endblock %}
+
+{% block content %}
+<section class="toolbar">
+  <div class="filters">
+    <button class="filter active" data-filter="all">All leads</button>
+    <button class="filter" data-filter="withEmail">With email</button>
+    <button class="filter" data-filter="withPeople">With people</button>
+  </div>
+  <input class="search" id="search" type="search" placeholder="Search by company, industry, contact…">
+</section>
+
+<section class="card lead-card">
+  <div style="overflow-x:auto;">
+    <table>
+      <thead>
+        <tr>
+          <th>Company</th>
+          <th>Industry</th>
+          <th>Location</th>
+          <th>People</th>
+          <th>Contact</th>
+          <th>Discovered</th>
+        </tr>
+      </thead>
+      <tbody id="leadsBody">
+        <tr><td colspan="6" class="empty">Loading leads…</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<p class="muted-2" style="font-size:12px; margin-top: 12px;">
+  Read-only view. Contact your admin if you need permission to export or start new research jobs.
+</p>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  const tbody = document.getElementById("leadsBody");
+  const searchInput = document.getElementById("search");
+  const filterBtns = [...document.querySelectorAll(".filter")];
+
+  let allLeads = [];
+  let activeFilter = "all";
+
+  function escapeHtml(s) {
+    return String(s ?? "").replace(/[&<>"']/g, c => ({
+      "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"
+    }[c]));
+  }
+
+  function pick(lead, ...keys) {
+    for (const k of keys) {
+      const v = lead[k];
+      if (v !== undefined && v !== null && v !== "") return v;
+    }
+    return "";
+  }
+  function normalise(lead) {
+    // Matches the developer's StandardLead.to_dict() keys (human-labelled with
+    // spaces and mixed case), with snake_case fallbacks.
+    return {
+      company:  pick(lead, "Company Name", "company_name", "name", "company") || "—",
+      industry: pick(lead, "Industry", "industry", "sector", "Category", "Segment") || "—",
+      website:  pick(lead, "Website", "website", "url"),
+      location: pick(lead, "City/Country", "city_country") ||
+                [pick(lead, "city"), pick(lead, "country")].filter(Boolean).join(", "),
+      founded:  pick(lead, "Founded", "founded"),
+      revenue:  pick(lead, "Revenue", "revenue"),
+      ceo:      pick(lead, "Ceo/Founder Name", "ceo_founder_name", "ceo", "founder"),
+      ceoLi:    pick(lead, "CEO Linkedn", "CEO LinkedIn", "ceo_linkedin"),
+      mkt:      pick(lead, "Marketing Head name", "Marketing Head Name", "marketing_head_name", "marketing_head"),
+      mktLi:    pick(lead, "Marketing Head Linkedn", "Marketing Head LinkedIn", "marketing_head_linkedin"),
+      email:    pick(lead, "Contact email", "Contact Email", "contact_email", "email"),
+      when:     pick(lead, "Date", "discovered_at", "created_at"),
+    };
+  }
+
+  function renderRow(L) {
+    const location = L.location || "—";
+    const people = [
+      L.ceo ? `<div><span class="name">${escapeHtml(L.ceo)}</span><div class="sub">CEO / Founder</div></div>` : "",
+      L.mkt ? `<div style="margin-top:6px;"><span class="name">${escapeHtml(L.mkt)}</span><div class="sub">Marketing Head</div></div>` : "",
+    ].filter(Boolean).join("") || "<span class='muted-2'>—</span>";
+    return `
+      <tr>
+        <td>
+          <div class="name">${escapeHtml(L.company)}</div>
+          <div class="sub">${L.website ? `<a class="link" href="${escapeHtml(L.website)}" target="_blank" rel="noopener">${escapeHtml(L.website)}</a>` : "—"}</div>
+          ${L.founded || L.revenue ? `<div class="sub">${escapeHtml(L.founded)}${L.founded && L.revenue ? " · " : ""}${escapeHtml(L.revenue)}</div>` : ""}
+        </td>
+        <td>${escapeHtml(L.industry)}</td>
+        <td>${escapeHtml(location)}</td>
+        <td>${people}</td>
+        <td>${L.email ? `<span class="mono">${escapeHtml(L.email)}</span>` : "<span class='muted-2'>—</span>"}</td>
+        <td class="mono muted-2">${escapeHtml(L.when || "—")}</td>
+      </tr>
+    `;
+  }
+
+  function passesFilter(L) {
+    if (activeFilter === "withEmail") return Boolean(L.email);
+    if (activeFilter === "withPeople") return Boolean(L.ceo || L.mkt);
+    return true;
+  }
+
+  function passesSearch(L, q) {
+    if (!q) return true;
+    const hay = `${L.company} ${L.industry} ${L.location} ${L.ceo} ${L.mkt} ${L.email}`.toLowerCase();
+    return hay.includes(q);
+  }
+
+  function paint() {
+    const q = searchInput.value.trim().toLowerCase();
+    const rows = allLeads.filter(L => passesFilter(L) && passesSearch(L, q));
+    if (!rows.length) {
+      tbody.innerHTML = `<tr><td colspan="6" class="empty">
+        <h3>No leads match</h3>
+        Try clearing filters or the search box.
+      </td></tr>`;
+      return;
+    }
+    tbody.innerHTML = rows.map(renderRow).join("");
+  }
+
+  filterBtns.forEach(b => b.addEventListener("click", () => {
+    filterBtns.forEach(x => x.classList.remove("active"));
+    b.classList.add("active");
+    activeFilter = b.dataset.filter;
+    paint();
+  }));
+  searchInput.addEventListener("input", paint);
+
+  async function loadLeads() {
+    try {
+      const r = await fetch("/output/leads.json", { credentials: "same-origin" });
+      if (r.status === 404) {
+        tbody.innerHTML = `<tr><td colspan="6" class="empty">
+          <h3>No leads yet</h3>
+          No research jobs have completed on this workspace. A BD manager needs to run one first.
+        </td></tr>`;
+        return;
+      }
+      if (!r.ok) throw new Error("HTTP " + r.status);
+      const raw = await r.json();
+      allLeads = (Array.isArray(raw) ? raw : []).map(normalise);
+      if (!allLeads.length) {
+        tbody.innerHTML = `<tr><td colspan="6" class="empty">
+          <h3>Leads file is empty</h3>
+          The last research job produced no leads.
+        </td></tr>`;
+        return;
+      }
+      paint();
+    } catch (e) {
+      tbody.innerHTML = `<tr><td colspan="6" class="empty">
+        <h3>Couldn't load leads</h3>
+        ${escapeHtml(e.message)}
+      </td></tr>`;
+    }
+  }
+
+  loadLeads();
+</script>
+{% endblock %}
